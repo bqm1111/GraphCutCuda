@@ -195,6 +195,7 @@ void CudaCut::d_mem_init()
             h_up_weight[i] = 1;
     }
     gpuErrChk(cudaMemcpy(d_up_weight, h_up_weight, size_int , cudaMemcpyHostToDevice));
+
     //gpuErrChk(cudaDeviceSynchronize());
 
     // initial right_flow
