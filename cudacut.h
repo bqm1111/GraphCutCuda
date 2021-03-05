@@ -37,12 +37,12 @@ inline void writeToFile(char * filename,int *data, int width, int height)
     {
         for(int x = 0; x < width; x++)
         {
-            fprintf(file, "%d\t", data[y * width + x]);
+            fprintf(file, "%d ", data[y * width + x]);
         }
         fprintf(file, "\n");
     }
-    fprintf(file, "%d\t", data[width*height]);
-    fprintf(file, "%d\t", data[width*height+1]);
+    fprintf(file, "%d ", data[width*height]);
+    fprintf(file, "%d ", data[width*height+1]);
     fclose(file);
 }
 class CudaCut
@@ -114,7 +114,7 @@ public:
     int *d_push_state;
     int *d_height_backup;
     int *d_excess_flow_backup;
-    bool *d_visited; //for bfs
+    int *d_visited; //for bfs
     bool *d_frontier; //for bfs
     int *d_m1, *d_m2, *d_process_area;
     int *d_pull_left, *d_pull_right, *d_pull_down, *d_pull_up, *d_graph_heightr, *d_graph_heightw;
@@ -128,7 +128,7 @@ public:
     int *h_height_backup;
     int *h_excess_flow_backup;
 
-    bool *h_visited; // for bfs
+    int *h_visited; // for bfs
     bool *h_frontier; // for bfs
     int *h_m1, *h_m2, *h_process_area;
     int *h_pull_left, *h_pull_right, *h_pull_down, *h_pull_up, *h_graph_heightr, *h_graph_heightw;
