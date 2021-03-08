@@ -11,10 +11,11 @@
 #include "opencv2/opencv.hpp"
 #include <fstream>
 #include<opencv2/opencv.hpp>
+#include <chrono>
 
 #define WIDTH 80
 #define HEIGHT 480
-
+#define getMoment std::chrono::high_resolution_clock::now()
 using namespace std;
 using namespace cv;
 
@@ -41,8 +42,8 @@ inline void writeToFile(char * filename,int *data, int width, int height)
         }
         fprintf(file, "\n");
     }
-    fprintf(file, "%d ", data[width*height]);
-    fprintf(file, "%d ", data[width*height+1]);
+//    fprintf(file, "%d ", data[width*height]);
+//    fprintf(file, "%d ", data[width*height+1]);
     fclose(file);
 }
 class CudaCut
@@ -118,6 +119,7 @@ public:
     bool *d_frontier; //for bfs
     int *d_m1, *d_m2, *d_process_area;
     int *d_pull_left, *d_pull_right, *d_pull_down, *d_pull_up, *d_graph_heightr, *d_graph_heightw;
+    int *d_sink_weight;
 
     int *h_left_weight, *h_right_weight, *h_down_weight, *h_up_weight;
     int *h_left_flow, *h_right_flow, *h_down_flow, *h_up_flow;
@@ -132,6 +134,7 @@ public:
     bool *h_frontier; // for bfs
     int *h_m1, *h_m2, *h_process_area;
     int *h_pull_left, *h_pull_right, *h_pull_down, *h_pull_up, *h_graph_heightr, *h_graph_heightw;
+    int *h_sink_weight;
 
 //    int *s_left_weight, *s_right_weight, *s_down_weight, *s_up_weight, *s_push_reser, *s_sink_weight;
 //    int *d_pull_left, *d_pull_right, *d_pull_down, *d_pull_up;

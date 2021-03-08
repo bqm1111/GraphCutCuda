@@ -1,8 +1,8 @@
 #include<iostream>
 #include "graph.h"
 #include "cudacut.h"
-#include <chrono>
-#define getMoment std::chrono::high_resolution_clock::now()
+
+
 int main()
 {
     int V = 16;
