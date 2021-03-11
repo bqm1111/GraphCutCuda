@@ -47,22 +47,61 @@ int main()
 
 
     //cout << "Maximum flow is " << g.getMaxFlow(s, t) << endl;
-    cv::Mat img = cv::imread("/home/nvidia/imgs/images_filter/964_60.619567_1608895267105.png", cv::IMREAD_GRAYSCALE);
-    cv::Mat img1 = cv::imread("/home/nvidia/imgs/images_filter/972_75.791195_1608895267265.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img0 = cv::imread("/home/nvidia/imgs/images_filter/152_0.591195_1608895250645.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img15 = cv::imread("/home/nvidia/imgs/images_filter/160_15.637790_1608895250805.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img30 = cv::imread("/home/nvidia/imgs/images_filter/168_30.608816_1608895250965.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img45 = cv::imread("/home/nvidia/imgs/images_filter/176_45.898608_1608895251125.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img60 = cv::imread("/home/nvidia/imgs/images_filter/185_60.669030_1608895251305.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img75 = cv::imread("/home/nvidia/imgs/images_filter/193_75.818675_1608895251465.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img90 = cv::imread("/home/nvidia/imgs/images_filter/201_90.642684_1608895251625.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img105 = cv::imread("/home/nvidia/imgs/images_filter/209_105.698897_1608895251785.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img120 = cv::imread("/home/nvidia/imgs/images_filter/217_120.694654_1608895251945.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img135 = cv::imread("/home/nvidia/imgs/images_filter/226_135.792087_1608895252125.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img150 = cv::imread("/home/nvidia/imgs/images_filter/234_150.613348_1608895252285.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img165 = cv::imread("/home/nvidia/imgs/images_filter/242_165.871538_1608895252445.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img180 = cv::imread("/home/nvidia/imgs/images_filter/250_180.747758_1608895252605.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img195 = cv::imread("/home/nvidia/imgs/images_filter/258_195.770995_1608895252765.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img210 = cv::imread("/home/nvidia/imgs/images_filter/267_210.670573_1608895252945.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img225 = cv::imread("/home/nvidia/imgs/images_filter/275_225.785868_1608895253105.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img240 = cv::imread("/home/nvidia/imgs/images_filter/283_240.732162_1608895253265.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img255 = cv::imread("/home/nvidia/imgs/images_filter/291_255.760895_1608895253425.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img270 = cv::imread("/home/nvidia/imgs/images_filter/300_270.667343_1608895253605.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img285 = cv::imread("/home/nvidia/imgs/images_filter/308_285.865078_1608895253765.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img300 = cv::imread("/home/nvidia/imgs/images_filter/316_300.768778_1608895253925.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img315 = cv::imread("/home/nvidia/imgs/images_filter/324_315.906057_1608895254085.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img330 = cv::imread("/home/nvidia/imgs/images_filter/333_330.675105_1608895254265.png", cv::IMREAD_GRAYSCALE);
+    cv::Mat img345 = cv::imread("/home/nvidia/imgs/images_filter/341_345.984133_1608895254425.png", cv::IMREAD_GRAYSCALE);
 
-
-    cv::Mat D (img, cv::Rect(35, 60, 640, 480) );
-    cv::Mat E (img1, cv::Rect(35, 60, 640, 480) );
+    x = 40;
+    int y = (80-x)/2;
+    cv::Mat D (img330, cv::Rect(35, 60, 640-y, 480) );
+    cv::Mat E (img345, cv::Rect(35+y, 60, 640-y, 480) );
     cv::Mat m1 = D.clone();
     cv::Mat m2 = E.clone();
-    CudaCut graphcut(480,80, m1, m2);
+//    cv::imshow("m1", m1);
+//    cv::imshow("m2", m2);
+//    cv::waitKey();
+    CudaCut graphcut(480,x, m1, m2);
+    cout << " stop ...." << endl;
+    cv::Mat result(480,640*2-80, CV_8UC1);
+    cout << result.rows << " " << result.cols << endl;
+    cv::Mat result1(480,640*2-80, CV_8UC1);
+    //D.copyTo(result1);
+    D.copyTo(result(cv::Rect(0,0,640-y,480)));
+    E.copyTo(result(cv::Rect(640-x-y,0,640-y,480)));
+    //cv::imshow("img330", D);
+    //cv::imshow("img345", E);
+
     graphcut.cudaCutsInit();
-    //graphcut.cudaCutsSetupGraph();
+    graphcut.cudaCutsSetupGraph();
     auto start = getMoment;
-    graphcut.cudaCutsAtomicOptimize();
+    graphcut.cudaCutsAtomic(result, result1);
     auto end = getMoment;
     std::cout << "Optimize Time = "<< std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000 << std::endl;
     graphcut.cudaCutsFreeMem();
     cout << "Maximum flow CPU is " << g.getMaxFlow(s, t) << endl;
+    cv::imshow("result", result);
+    cv::imshow("result1", result1);
+    cv::waitKey(0);
     return 0;
 }

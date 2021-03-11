@@ -13,8 +13,9 @@
 #include<opencv2/opencv.hpp>
 #include <chrono>
 
-#define WIDTH 80
+#define WIDTH 40
 #define HEIGHT 480
+#define OVERLAP_WIDTH 40
 #define getMoment std::chrono::high_resolution_clock::now()
 using namespace std;
 using namespace cv;
@@ -81,13 +82,13 @@ public:
     int cudaCutsNonAtomicOptimize();
 
     // This function calls 3 kernels which performs the push, pull and relabel operation
-    void cudaCutsNonAtomic();
+    void cudaCutsNonAtomic(cv::Mat& result);
 
     // This finds which of the nodes are in source set and sink set
     void bfsLabeling();
 
-    int cudaCutsAtomicOptimize();
-    void cudaCutsAtomic();
+    int cudaCutsAtomicOptimize(cv::Mat& result);
+    void cudaCutsAtomic(cv::Mat& result, cv::Mat& result1);
 
     // This function assigns a label to each pixel and stores them in pixelLabel
     // array of size width * height
@@ -117,7 +118,7 @@ public:
     int *d_excess_flow_backup;
     int *d_visited; //for bfs
     bool *d_frontier; //for bfs
-    int *d_m1, *d_m2, *d_process_area;
+    int *d_m1, *d_m2, *d_process_area, *d_horizontal, *d_vertical;
     int *d_pull_left, *d_pull_right, *d_pull_down, *d_pull_up, *d_graph_heightr, *d_graph_heightw;
     int *d_sink_weight;
 
@@ -132,7 +133,9 @@ public:
 
     int *h_visited; // for bfs
     bool *h_frontier; // for bfs
-    int *h_m1, *h_m2, *h_process_area;
+
+    unsigned char *h_m1, *h_m2;
+    int *h_process_area, *h_horizontal, *h_vertical;
     int *h_pull_left, *h_pull_right, *h_pull_down, *h_pull_up, *h_graph_heightr, *h_graph_heightw;
     int *h_sink_weight;
 
