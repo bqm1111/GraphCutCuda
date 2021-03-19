@@ -15,7 +15,7 @@
 
 #define WIDTH 40
 #define HEIGHT 480
-#define OVERLAP_WIDTH 40
+#define OVERLAP_WIDTH 80
 #define getMoment std::chrono::high_resolution_clock::now()
 using namespace std;
 using namespace cv;
@@ -121,6 +121,7 @@ public:
     int *d_m1, *d_m2, *d_process_area, *d_horizontal, *d_vertical;
     int *d_pull_left, *d_pull_right, *d_pull_down, *d_pull_up, *d_graph_heightr, *d_graph_heightw;
     int *d_sink_weight;
+    int *d_push_block_position;
 
     int *h_left_weight, *h_right_weight, *h_down_weight, *h_up_weight;
     int *h_left_flow, *h_right_flow, *h_down_flow, *h_up_flow;
@@ -138,6 +139,7 @@ public:
     int *h_process_area, *h_horizontal, *h_vertical;
     int *h_pull_left, *h_pull_right, *h_pull_down, *h_pull_up, *h_graph_heightr, *h_graph_heightw;
     int *h_sink_weight;
+    int *h_push_block_position;
 
 //    int *s_left_weight, *s_right_weight, *s_down_weight, *s_up_weight, *s_push_reser, *s_sink_weight;
 //    int *d_pull_left, *d_pull_right, *d_pull_down, *d_pull_up;

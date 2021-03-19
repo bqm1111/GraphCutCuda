@@ -72,23 +72,27 @@ int main()
     cv::Mat img330 = cv::imread("/home/nvidia/imgs/images_filter/333_330.675105_1608895254265.png", cv::IMREAD_GRAYSCALE);
     cv::Mat img345 = cv::imread("/home/nvidia/imgs/images_filter/341_345.984133_1608895254425.png", cv::IMREAD_GRAYSCALE);
 
-    x = 40;
-    int y = (80-x)/2;
-    cv::Mat D (img330, cv::Rect(35, 60, 640-y, 480) );
-    cv::Mat E (img345, cv::Rect(35+y, 60, 640-y, 480) );
+//    x = 80;
+//    int y = (80-x)/2;
+    cv::Mat D (img330, cv::Rect(35, 60, 640, 480) );
+    cv::Mat E (img345, cv::Rect(35, 60, 640, 480) );
     cv::Mat m1 = D.clone();
     cv::Mat m2 = E.clone();
+    cv::Mat img_resize1, img_resize2;
+    cv::resize(D, img_resize1, cv::Size(D.cols * 0.5,D.rows * 0.5), 0, 0, CV_INTER_LINEAR);
+    cv::resize(E, img_resize2, cv::Size(E.cols * 0.5,E.rows * 0.5), 0, 0, CV_INTER_LINEAR);
+//    cv::imshow("img_resize", img_resize);
 //    cv::imshow("m1", m1);
 //    cv::imshow("m2", m2);
 //    cv::waitKey();
-    CudaCut graphcut(480,x, m1, m2);
+    CudaCut graphcut(m1.rows,OVERLAP_WIDTH, m1, m2);
     cout << " stop ...." << endl;
-    cv::Mat result(480,640*2-80, CV_8UC1);
+    cv::Mat result(m1.rows, m1.cols*2-OVERLAP_WIDTH, CV_8UC1);
     cout << result.rows << " " << result.cols << endl;
-    cv::Mat result1(480,640*2-80, CV_8UC1);
+    cv::Mat result1(m1.rows, m1.cols*2-OVERLAP_WIDTH, CV_8UC1);
     //D.copyTo(result1);
-    D.copyTo(result(cv::Rect(0,0,640-y,480)));
-    E.copyTo(result(cv::Rect(640-x-y,0,640-y,480)));
+    m1.copyTo(result(cv::Rect(0,0,m1.cols, m1.rows)));
+    m2.copyTo(result(cv::Rect(m1.cols-OVERLAP_WIDTH,0,m1.cols, m1.rows)));
     //cv::imshow("img330", D);
     //cv::imshow("img345", E);
 
