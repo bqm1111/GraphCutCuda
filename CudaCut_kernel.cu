@@ -36,10 +36,10 @@ push_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d_do
                 //atomicAdd(&d_excess_flow_backup[node_i - 1], flow);
                 //printf("pushing node %d to the left \n", node_i);
             }
-            else{
-                d_relabel_mask[node_i] = 1;
-                //printf("in push left, node %d need relabel \n", node_i);
-            }
+//            else{
+//                d_relabel_mask[node_i] = 1;
+//                //printf("in push left, node %d need relabel \n", node_i);
+//            }
 
         }
 
@@ -54,10 +54,10 @@ push_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d_do
                 //atomicAdd(&d_excess_flow_backup[node_i + 1], flow);
                 //printf("pushing node %d to the right \n", node_i);
             }
-            else{
-                d_relabel_mask[node_i] = 1;
-                //printf("in push right, node %d need relabel \n", node_i);
-            }
+//            else{
+//                d_relabel_mask[node_i] = 1;
+//                //printf("in push right, node %d need relabel \n", node_i);
+//            }
 
         }
         //__threadfence();
@@ -78,10 +78,10 @@ push_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d_do
                     //atomicAdd(&d_excess_flow_backup[node_i + width], flow);
                     //printf("pushing node %d to the down\n", node_i);
                 }
-                else{
-                    d_relabel_mask[node_i] = 1;
-                    //printf("in push down, node %d need relabel \n", node_i);
-                }
+//                else{
+//                    d_relabel_mask[node_i] = 1;
+//                    //printf("in push down, node %d need relabel \n", node_i);
+//                }
 
             }
         }
@@ -100,10 +100,10 @@ push_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d_do
                     //atomicAdd(&d_excess_flow_backup[node_i - width], flow);
                     //printf("pushing node %d to the up \n", node_i);
                 }
-                else{
-                    d_relabel_mask[node_i] = 1;
-                    //printf("in push up, node %d need relabel \n", node_i);
-                }
+//                else{
+//                    d_relabel_mask[node_i] = 1;
+//                    //printf("in push up, node %d need relabel \n", node_i);
+//                }
 
             }
         }
@@ -116,9 +116,9 @@ push_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d_do
         //ix-1 < 0?height_backup[2]=d_graph_height[N]:height_backup[2]=d_graph_height[iy*width + ix-1];
         iy-1 < 0?height_backup[3]=-1:height_backup[3]=d_graph_height[node_i - width];
 
-        if(d_excess_flow[node_i] == 0){
-            d_relabel_mask[node_i] = 0;
-        }
+//        if(d_excess_flow[node_i] > 0){
+//            d_relabel_mask[node_i] = 1;
+//        }
     }
 
 
@@ -149,9 +149,9 @@ push_block_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int
 
     // counter = 0,1,2,3,4 || 10,11,12,13,14
     //printf("counter in push_block_kernel %d, blockIdx.x %d \n", *counter, blockIdx.x);
-    //int cond = (*counter)%15;
-    if(*counter < 4){
-        if(*counter == blockIdx.x){
+    int cond = (*counter)%15;
+    if(cond < 5){
+        if(cond == blockIdx.x){
             //printf("cond in push_block_kernel %d\n", cond);
             int pos = d_push_block_position[iy*gridDim.x + blockIdx.x];
             //printf("pos of blockIdx.%d  %d\n", blockIdx.x, pos);
@@ -159,6 +159,8 @@ push_block_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int
             __shared__ int smem[180];
             int idx = (y1+1)*18 + x1+1;
             x1 >= pos?smem[idx] = d_right_weight[node_i] : smem[idx] = 1<<20;
+            if(blockIdx.x == 4 && x1 == 15)
+                smem[idx] = 1<<20;
             __syncthreads();
 //            if(x1 == 0 && y1 == 0 && blockIdx.y == 0){
 //                for(int i = 0; i < 8; i++){
@@ -187,12 +189,15 @@ push_block_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int
 //            }
 //            __syncthreads();
 
-            if(x1 == pos){
+            if(x1 >= pos){
                 if(d_excess_flow[node_i] > 0){
                     flow_block[y1] = min(d_excess_flow[node_i], smem[(y1+1)*18 + 1]);
                     atomicSub(&d_excess_flow[node_i], flow_block[y1]);
                     // notice
-                    atomicAdd(&d_excess_flow[iy*width + blockDim.x], flow_block[y1]);
+                    if(blockIdx.x != 4)
+                        atomicAdd(&d_excess_flow[iy*width + blockDim.x*(blockIdx.x+1)], flow_block[y1]);
+                    else
+                        atomicAdd(&d_excess_flow[iy*width + blockDim.x*(blockIdx.x+1) - 1], flow_block[y1]);
                 }
             }
             __syncthreads();
@@ -208,6 +213,115 @@ push_block_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int
                 d_right_weight[node_i] -= flow_block[y1];
                 if(d_right_weight[node_i] == 0){
                     d_push_block_position[iy*gridDim.x + blockIdx.x] = ix+1;
+                }
+            }
+
+        }
+        if(blockIdx.x < cond){
+            int *height_backup = d_height_backup + 4*node_i;
+
+                //__syncthreads();
+
+
+
+                //d_push_state[node_i] = 0;
+            int flow;
+
+            if(ix != 0 && ix != width - 1){
+                // push to the left
+                if(d_excess_flow[node_i] > 0 && d_left_weight[node_i] > 0){
+                    if(d_graph_height[node_i] == 1 + d_graph_height[node_i - 1]){
+                        flow = min(d_left_weight[node_i], d_excess_flow[node_i]);
+                        //d_excess_flow[node_i] -= flow;
+                        d_left_weight[node_i] -= flow;
+                        d_right_weight[node_i - 1] += flow;
+                        atomicSub(&d_excess_flow[node_i], flow);
+                        atomicAdd(&d_excess_flow[node_i - 1], flow);
+                        //atomicAdd(&d_excess_flow_backup[node_i - 1], flow);
+                        //printf("pushing node %d to the left \n", node_i);
+                    }
+                    else{
+                        d_relabel_mask[node_i] = 1;
+                        //printf("in push left, node %d need relabel \n", node_i);
+                    }
+
+                }
+
+                // push right
+                if(d_excess_flow[node_i] > 0 && d_right_weight[node_i] > 0){
+                    if(d_graph_height[node_i] == 1 + d_graph_height[node_i + 1]){
+                        flow = min(d_right_weight[node_i], d_excess_flow[node_i]);
+                        d_right_weight[node_i] -= flow;
+                        d_left_weight[node_i + 1] += flow;
+                        atomicSub(&d_excess_flow[node_i], flow);
+                        atomicAdd(&d_excess_flow[node_i + 1], flow);
+                        //atomicAdd(&d_excess_flow_backup[node_i + 1], flow);
+                        //printf("pushing node %d to the right \n", node_i);
+                    }
+                    else{
+                        d_relabel_mask[node_i] = 1;
+                        //printf("in push right, node %d need relabel \n", node_i);
+                    }
+
+                }
+                //__threadfence();
+
+
+                //__threadfence();
+
+                // push to the down
+                if(iy+1 < height){
+                    if(d_excess_flow[node_i] > 0 && d_down_weight[node_i] > 0){
+                        if(d_graph_height[node_i] == 1 + d_graph_height[node_i + width]){
+                            flow = min(d_down_weight[node_i], d_excess_flow[node_i]);
+                            //d_excess_flow[node_i] -= flow;
+                            d_down_weight[node_i] -= flow;
+                            d_up_weight[node_i + width] += flow;
+                            atomicSub(&d_excess_flow[node_i], flow);
+                            atomicAdd(&d_excess_flow[node_i + width], flow);
+                            //atomicAdd(&d_excess_flow_backup[node_i + width], flow);
+                            //printf("pushing node %d to the down\n", node_i);
+                        }
+                        else{
+                            d_relabel_mask[node_i] = 1;
+                            //printf("in push down, node %d need relabel \n", node_i);
+                        }
+
+                    }
+                }
+                //__threadfence();
+
+                //push up
+                if(iy-1 >= 0){
+                    if(d_excess_flow[node_i] > 0 && d_up_weight[node_i] > 0){
+                        if(d_graph_height[node_i] == 1 + d_graph_height[node_i - width]){
+                            flow = min(d_up_weight[node_i], d_excess_flow[node_i]);
+                            //d_excess_flow[node_i] -= flow;
+                            d_up_weight[node_i] -= flow;
+                            d_down_weight[node_i - width] += flow;
+                            atomicSub(&d_excess_flow[node_i], flow);
+                            atomicAdd(&d_excess_flow[node_i - width], flow);
+                            //atomicAdd(&d_excess_flow_backup[node_i - width], flow);
+                            //printf("pushing node %d to the up \n", node_i);
+                        }
+                        else{
+                            d_relabel_mask[node_i] = 1;
+                            //printf("in push up, node %d need relabel \n", node_i);
+                        }
+
+                    }
+                }
+                //__threadfence();
+
+                height_backup[0]=d_graph_height[node_i + 1];
+                height_backup[2]=d_graph_height[node_i - 1];
+                //ix+1 >= width?height_backup[0]=d_graph_height[N+1]:height_backup[0]=d_graph_height[iy*width + ix+1];
+                iy+1 >= height?height_backup[1]=-1:height_backup[1]=d_graph_height[node_i + width];
+                //ix-1 < 0?height_backup[2]=d_graph_height[N]:height_backup[2]=d_graph_height[iy*width + ix-1];
+                iy-1 < 0?height_backup[3]=-1:height_backup[3]=d_graph_height[node_i - width];
+
+                if(d_excess_flow[node_i] == 0){
+                    d_relabel_mask[node_i] = 0;
                 }
             }
 
@@ -425,76 +539,76 @@ push_block_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int
 //        return;
 //    }
 
-    if(*counter == 4){
-        if(blockIdx.x == 4){
-            //printf("cond in push_block_kernel %d\n", cond);
-            int pos = d_push_block_position[iy*gridDim.x + blockIdx.x];
-            //printf("pos of blockIdx.%d  %d\n", blockIdx.x, pos);
-            __shared__ int flow_block[10];
-            __shared__ int smem[180];
-            int idx = (y1+1)*18 + x1+1;
-            x1 >= pos?smem[idx] = d_right_weight[node_i] : smem[idx] = 1<<20;
-            if(x1 ==  15) smem[idx] = 1<<20;
-            __syncthreads();
-            // print smem 1
-//            if(x1 == 0 && y1 == 0 && blockIdx.y == 0){
-//                for(int i = 0; i < 8; i++){
-//                    for(int j = 0; j < 16; j++){
-//                        printf("%d ", smem[(i+1)*18+j+1]);
-//                    }
-//                    printf("\n");
+//    if(*counter == 4){
+//        if(blockIdx.x == 4){
+//            //printf("cond in push_block_kernel %d\n", cond);
+//            int pos = d_push_block_position[iy*gridDim.x + blockIdx.x];
+//            //printf("pos of blockIdx.%d  %d\n", blockIdx.x, pos);
+//            __shared__ int flow_block[10];
+//            __shared__ int smem[180];
+//            int idx = (y1+1)*18 + x1+1;
+//            x1 >= pos?smem[idx] = d_right_weight[node_i] : smem[idx] = 1<<20;
+//            if(x1 ==  15) smem[idx] = 1<<20;
+//            __syncthreads();
+//            // print smem 1
+////            if(x1 == 0 && y1 == 0 && blockIdx.y == 0){
+////                for(int i = 0; i < 8; i++){
+////                    for(int j = 0; j < 16; j++){
+////                        printf("%d ", smem[(i+1)*18+j+1]);
+////                    }
+////                    printf("\n");
+////                }
+////            }
+////            __syncthreads();
+//            for(int stride = blockDim.x/2; stride > 0; stride >>= 1){
+//                if(x1 < stride){
+//                    smem[idx]>smem[idx+stride]?smem[idx] = smem[idx+stride] : 0;
+
+//                }
+
+//                __syncthreads();
+//            }
+
+//            // print smem 2
+////            if(x1 == 0 && y1 == 0 && blockIdx.y == 0){
+////                for(int i = 0; i < 8; i++){
+////                    for(int j = 0; j < 16; j++){
+////                        printf("%d ", smem[(i+1)*18+j+1]);
+////                    }
+////                    printf("\n");
+////                }
+////            }
+////            __syncthreads();
+
+
+//            if(x1 == pos){
+//                if(d_excess_flow[node_i] > 0){
+//                    flow_block[y1] = min(d_excess_flow[node_i], smem[(y1+1)*18 + 1]);
+//                    atomicSub(&d_excess_flow[node_i], flow_block[y1]);
+//                    atomicAdd(&d_excess_flow[iy*width + blockDim.x*5-1], flow_block[y1]);
 //                }
 //            }
+
+//            // print flow_block
+////            if(x1 == 0 && y1 == 0 && blockIdx.y == 0){
+////                for(int j = 0; j < 8; j++){
+////                    printf("%d ", flow_block[j]);
+////                    }
+////                 printf("\n");
+////            }
 //            __syncthreads();
-            for(int stride = blockDim.x/2; stride > 0; stride >>= 1){
-                if(x1 < stride){
-                    smem[idx]>smem[idx+stride]?smem[idx] = smem[idx+stride] : 0;
 
-                }
-
-                __syncthreads();
-            }
-
-            // print smem 2
-//            if(x1 == 0 && y1 == 0 && blockIdx.y == 0){
-//                for(int i = 0; i < 8; i++){
-//                    for(int j = 0; j < 16; j++){
-//                        printf("%d ", smem[(i+1)*18+j+1]);
-//                    }
-//                    printf("\n");
+//            if(x1 >= pos){
+//                d_right_weight[node_i] -= flow_block[y1];
+//                if(d_right_weight[node_i] == 0){
+//                    d_push_block_position[iy*gridDim.x + blockIdx.x] = ix+1;
 //                }
 //            }
-//            __syncthreads();
 
-
-            if(x1 == pos){
-                if(d_excess_flow[node_i] > 0){
-                    flow_block[y1] = min(d_excess_flow[node_i], smem[(y1+1)*18 + 1]);
-                    atomicSub(&d_excess_flow[node_i], flow_block[y1]);
-                    atomicAdd(&d_excess_flow[iy*width + blockDim.x*5-1], flow_block[y1]);
-                }
-            }
-
-            // print flow_block
-//            if(x1 == 0 && y1 == 0 && blockIdx.y == 0){
-//                for(int j = 0; j < 8; j++){
-//                    printf("%d ", flow_block[j]);
-//                    }
-//                 printf("\n");
-//            }
-            __syncthreads();
-
-            if(x1 >= pos){
-                d_right_weight[node_i] -= flow_block[y1];
-                if(d_right_weight[node_i] == 0){
-                    d_push_block_position[iy*gridDim.x + blockIdx.x] = ix+1;
-                }
-            }
-
-        }
-        //__syncthreads();
-        return;
-    }
+//        }
+//        //__syncthreads();
+//        return;
+//    }
     //if(ix >= width) return;
 
 
@@ -650,18 +764,26 @@ relabel_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d
     int node_i = iy*width + ix;
     int mh = 1<<26;
     int *height_backup = d_height_backup + 4*node_i;
+
+//    int idx = threadIdx.y*33 + threadIdx.x;
+//    __shared__ int height_node_i[33*16];
+//    height_node_i[idx] = d_graph_height[node_i];
+//    __syncthreads();
 //    if(d_excess_flow_backup[node_i] > 0){
 //        d_excess_flow[node_i] += d_excess_flow_backup[node_i];
 //        d_excess_flow_backup[node_i] = 0;
 //    }
 
     if(ix > 0 && ix < width - 1){
-    if(height_backup[0] == N && height_backup[2] == N
-            && (height_backup[1] == N || height_backup[1] == -1)
-            && (height_backup[3] == N || height_backup[3] == -1)){
-        d_excess_flow[node_i] = 0;
-        return;
-    }
+        if(d_excess_flow[node_i] > 0){
+            d_relabel_mask[node_i] = 1;
+        }
+//    if(height_backup[0] == N && height_backup[2] == N
+//            && (height_backup[1] == N || height_backup[1] == -1)
+//            && (height_backup[3] == N || height_backup[3] == -1)){
+//        d_excess_flow[node_i] = 0;
+//        return;
+//    }
 
 
 //    __syncthreads();
@@ -670,6 +792,7 @@ relabel_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d
                 if(height_backup[0] < mh){
                     mh = height_backup[0];
                     d_graph_height[node_i] = mh + 1;
+                    //height_node_i[idx] = mh + 1;
                     //tmp = mh + 1;
                 }
             }
@@ -677,6 +800,7 @@ relabel_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d
                 if(height_backup[2] < mh){
                     mh = height_backup[2];
                     d_graph_height[node_i] = mh + 1;
+                    //height_node_i[idx] = mh + 1;
                     //tmp = mh + 1;
                 }
             }
@@ -684,6 +808,7 @@ relabel_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d
                 if(height_backup[1] < mh){
                     mh = height_backup[1];
                     d_graph_height[node_i] = mh + 1;
+                    //height_node_i[idx] = mh + 1;
                     //tmp = mh + 1;
                 }
             }
@@ -691,9 +816,12 @@ relabel_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d
                 if(height_backup[3] < mh){
                     mh = height_backup[3];
                     d_graph_height[node_i] = mh + 1;
+                    //height_node_i[idx] = mh + 1;
                     //tmp = mh + 1;
                 }
             }
+//            __threadfence();
+//            d_graph_height[node_i] = height_node_i[idx];
 
         }
     //}

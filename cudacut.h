@@ -2,6 +2,7 @@
 #define CUDACUT_H
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <iostream>
 #include <stdio.h>
 #include <math.h>
@@ -88,7 +89,7 @@ public:
     void bfsLabeling();
 
     int cudaCutsAtomicOptimize(cv::Mat& result);
-    void cudaCutsAtomic(cv::Mat& result, cv::Mat& result1);
+    void cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, int number_loops);
 
     // This function assigns a label to each pixel and stores them in pixelLabel
     // array of size width * height

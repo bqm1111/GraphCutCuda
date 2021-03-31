@@ -3,7 +3,7 @@
 #include "cudacut.h"
 
 
-int main()
+int main(int argc, char **argv)
 {
     int V = 16;
     Graph g(V);
@@ -74,6 +74,8 @@ int main()
 
 //    x = 80;
 //    int y = (80-x)/2;
+    int blockDimy = atoi(argv[1]);
+    int number_loops = atoi(argv[2]);
     cv::Mat D (img330, cv::Rect(35, 60, 640, 480) );
     cv::Mat E (img345, cv::Rect(35, 60, 640, 480) );
     cv::Mat m1 = D.clone();
@@ -99,7 +101,7 @@ int main()
     graphcut.cudaCutsInit();
     graphcut.cudaCutsSetupGraph();
     auto start = getMoment;
-    graphcut.cudaCutsAtomic(result, result1);
+    graphcut.cudaCutsAtomic(result, result1, blockDimy, number_loops);
     auto end = getMoment;
     std::cout << "Optimize Time = "<< std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000 << std::endl;
     graphcut.cudaCutsFreeMem();
