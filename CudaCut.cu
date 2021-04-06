@@ -48,6 +48,7 @@ void CudaCut::h_mem_init()
     h_sink_weight = (int*)malloc(sizeof(int)*graph_size);
 
     h_push_block_position = (int*)malloc(sizeof(int)*(5*height));
+    h_stochastic = (int*)malloc(sizeof(int)*300);
 
 
 
@@ -69,6 +70,7 @@ void CudaCut::d_mem_init()
 
     gpuErrChk(cudaMalloc((void**)&d_graph_height, sizeof(int)*graph_size));
     gpuErrChk(cudaMalloc((void**)&d_excess_flow, sizeof(int)*graph_size));
+    gpuErrChk(cudaMalloc((void**)&s_excess_flow, sizeof(int)*graph_size));
     gpuErrChk(cudaMalloc((void**)&d_relabel_mask, size_int));
     gpuErrChk(cudaMalloc((void**)&d_push_state, size_int));
     gpuErrChk(cudaMalloc((void**)&d_height_backup, 4*size_int));
@@ -93,6 +95,7 @@ void CudaCut::d_mem_init()
     gpuErrChk(cudaMalloc((void**)&d_sink_weight, sizeof(int)*graph_size));
 
     gpuErrChk(cudaMalloc((void**)&d_push_block_position, sizeof(int)*(5*height)));
+    gpuErrChk(cudaMalloc((void**)&d_stochastic, sizeof(int)*300));
 
 //    memset(h_graph_height, 0, sizeof(int)*graph_size1);
 //    h_graph_height[graph_size] = graph_size1;
@@ -274,7 +277,7 @@ setupGraph_kernel(int *d_horizontal, int *d_vertical, int *d_right_weight, int *
     d_down_weight[node_i] = d_vertical[(iy+1)*width + ix];
     d_up_weight[node_i] = d_vertical[node_i];
     d_excess_flow[node_i] = 0;
-    d_graph_height[node_i] = height - iy - 1;
+    d_graph_height[node_i] = width - ix - 1;
 
 //    if(ix > 0 && iy > 0){
 //        d_right_weight[node_i] = d_horizontal[node_i];
@@ -447,21 +450,23 @@ int CudaCut::cudaCutsSetupGraph(){
                       d_down_weight, d_excess_flow, d_push_block_position, d_graph_height, width, height, graph_size);
     adjustGraph_kernel<<<grid, block>>>(d_excess_flow, d_left_weight,d_right_weight, d_down_weight, d_up_weight, d_graph_height, width, height, graph_size);
 
-    gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-    gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-    gpuErrChk(cudaMemcpy(h_down_weight, d_down_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-    gpuErrChk(cudaMemcpy(h_up_weight, d_up_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-    gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-    gpuErrChk(cudaMemcpy(h_push_block_position, d_push_block_position, sizeof(int)*5*height, cudaMemcpyDeviceToHost));
-    writeToFile("../variable/h_right_weight.txt", h_right_weight, width, height);
-    writeToFile("../variable/h_left_weight.txt", h_left_weight, width, height);
-    writeToFile("../variable/h_down_weight.txt", h_down_weight, width, height);
-    writeToFile("../variable/h_up_weight.txt", h_up_weight, width, height);
-    writeToFile("../variable/h_excess_flow.txt", h_excess_flow, width, height);
-    writeToFile("../variable/h_horizontal.txt", h_horizontal, width+1, height);
-    writeToFile("../variable/h_vertical.txt", h_vertical, width, height+1);
-    writeToFile("../variable/h_push_block_position.txt", h_push_block_position, 5, height);
-    //while(getchar() != 32);
+//    gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_down_weight, d_down_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_up_weight, d_up_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_push_block_position, d_push_block_position, sizeof(int)*5*height, cudaMemcpyDeviceToHost));
+//    writeToFile("../variable/h_right_weight.txt", h_right_weight, width, height);
+//    writeToFile("../variable/h_left_weight.txt", h_left_weight, width, height);
+//    writeToFile("../variable/h_down_weight.txt", h_down_weight, width, height);
+//    writeToFile("../variable/h_up_weight.txt", h_up_weight, width, height);
+//    writeToFile("../variable/h_excess_flow.txt", h_excess_flow, width, height);
+//    writeToFile("../variable/h_horizontal.txt", h_horizontal, width+1, height);
+//    writeToFile("../variable/h_vertical.txt", h_vertical, width, height+1);
+//    writeToFile("../variable/h_push_block_position.txt", h_push_block_position, 5, height);
+//    gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+//    writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
+//    while(getchar() != 32);
     return 0;
 }
 
@@ -474,10 +479,18 @@ int CudaCut::cudaCutsInit(){
 
 void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, int number_loops){
     //size = 80*480
-
+    auto start = getMoment;
     dim3 block(16, blockDimy, 1);
     dim3 grid((width+block.x-1)/block.x, (height+block.y-1)/block.y, 1);
-    printf("<<<grid(%d, %d), block(%d, %d)>>>", grid.x, grid.y, block.x, block.y);
+    int number_block = grid.x*grid.y;
+    int block_width = grid.x;
+    int block_count;
+    int *d_number_block, *d_block_width;
+    gpuErrChk(cudaMalloc((void**)&d_number_block, sizeof(int)));
+    gpuErrChk(cudaMalloc((void**)&d_block_width, sizeof(int)));
+    gpuErrChk(cudaMemcpy(d_number_block, &number_block, sizeof(int), cudaMemcpyHostToDevice));
+    gpuErrChk(cudaMemcpy(d_block_width, &block_width, sizeof(int), cudaMemcpyHostToDevice));
+    printf("<<<grid(%d, %d), block(%d, %d)>>>\n", grid.x, grid.y, block.x, block.y);
     int h_finished_count;
     int h_relabel_count;
     int  h_finish_bfs;
@@ -487,48 +500,223 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
     int *d_count;
     int *d_relabel_count;
 
-
+//    cudaMallocManaged((void**)&d_finished_count, sizeof(int));
+//    cudaMallocManaged((void**)&d_relabel_count, sizeof(int));
+//    cudaMallocManaged((void**)&d_finish_bfs, sizeof(int));
+//    cudaMallocManaged((void**)&d_count, sizeof(int));
+//    *d_count = 0;
+//    *d_finish_bfs = 1;
+    std::cout << "stop 1" << std::endl;
     gpuErrChk(cudaMalloc((void**)&d_finished_count, sizeof(int)));
     gpuErrChk(cudaMalloc((void**)&d_relabel_count, sizeof(int)));
     gpuErrChk(cudaMalloc((void**)&d_finish_bfs, sizeof(int)));
     gpuErrChk(cudaMalloc((void**)&d_count, sizeof(int)));
-
-
-
-    //gpuErrChk(cudaDeviceSynchronize());
-//    gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-//    gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-//    gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-//    gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-//    gpuErrChk(cudaMemcpy(h_down_weight, d_down_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-//    gpuErrChk(cudaMemcpy(h_up_weight, d_up_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-//    writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
-//    writeToFile("../variable/h_excess_flow.txt", h_excess_flow, width, height);
-//    writeToFile("../variable/h_right_weight.txt", h_right_weight, width, height);
-//    writeToFile("../variable/h_left_weight.txt", h_left_weight, width, height);
-//    writeToFile("../variable/h_down_weight.txt", h_down_weight, width, height);
-//    writeToFile("../variable/h_up_weight.txt", h_up_weight, width, height);
-//    while(getchar() != 32);
 
     h_finished_count = 1;
     int counter = 0;
     int *d_counter;
     gpuErrChk(cudaMalloc((void**)&d_counter, sizeof(int)));
     int sum;
+    bool finish =true;
+    bool *d_finish;
+    gpuErrChk(cudaMalloc((void**)&d_finish, sizeof(bool)));
+    int h_terminate_condition = 0;
+    start = getMoment;
     while(h_finished_count != 0){
-
+        std::cout << "stop 2" << std::endl;
         //gpuErrChk(cudaDeviceSynchronize());
         gpuErrChk(cudaMemcpy(d_counter, &counter, sizeof(int), cudaMemcpyHostToDevice));
         //gpuErrChk(cudaDeviceSynchronize());
 
         // global relabeling
+//        if((counter+1) % 10 == 0){
+//            finish = true ;
+//            //printf("counter1 %d\n", counter);
+//            gpuErrChk(cudaMemcpy(d_finish, &finish, sizeof(bool), cudaMemcpyHostToDevice));
+//            //printf("counter1 %d\n", counter);
+//            kernel_push_stochastic1<<<grid,block>>>(d_excess_flow, s_excess_flow,  d_number_block, d_finish, width);
+//            gpuErrChk(cudaMemcpy(&finish, d_finish, sizeof(bool), cudaMemcpyDeviceToHost));
+//            //printf("counter2 %d\n", counter);
+
+//            if (finish == false)
+//            {
+//                h_terminate_condition++ ;
+//            }
+//            //while(getchar() != 32);
+//        }
+
+//        if((counter+1) % 11 == 0)
+//        {
+//            gpuErrChk(cudaMemset(d_stochastic, 0, sizeof(int)*number_block));
+//            //h_count_blocks = 0 ;
+//            //gpuErrChk(cudaMemcpy(d_count_blocks, &h_count_blocks, sizeof(int), cudaMemcpyHostToDevice));
+//            kernel_push_stochastic2<<<grid,block>>>(d_excess_flow, s_excess_flow, d_stochastic, d_block_width, width);
+
+//            //kernel_End<<<End_grid, End_block>>>(d_stochastic, d_count_blocks, d_counter);
+//            //gpuErrChk(cudaMemcpy(&h_count_blocks, d_count_blocks, sizeof(int), cudaMemcpyDeviceToHost));
+//            //printf("counter blocks %d %d\n",counter, h_count_blocks);
+
+//            gpuErrChk(cudaMemcpy(h_stochastic, d_stochastic, sizeof(int)*number_block, cudaMemcpyDeviceToHost));
+
+//            block_count = 0 ;
+//            for (int i = 0 ; i < number_block; i++)
+//            {
+//                if(h_stochastic[i] == 1)
+//                {
+//                    block_count++ ;
+//                }
+//                h_stochastic[i] = 0 ;
+//            }
+//            gpuErrChk(cudaMemcpy(d_number_block, &block_count, sizeof(int), cudaMemcpyHostToDevice));
+//            //printf("blocks counter %d %d\n",blocks_num, counter);
+//        }
+
 
         // state on for node that has excess flow > 0
         //push_state_kernel<<<grid, block>>>(d_push_state, d_excess_flow, width, graph_size);
         //gpuErrChk(cudaDeviceSynchronize());
 
         // pushing and save offset of flow to mediate array (d_excess_flow_backup)
-//        gpuErrChk(cudaDeviceSynchronize());
+
+        //auto start = getMoment;
+        if((counter%40) < 5){
+            push_block_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
+                                         d_excess_flow, d_graph_height, d_relabel_mask, d_height_backup, d_excess_flow_backup,
+                                         d_push_block_position, width, height, graph_size, d_counter);
+//            gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//            gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//            gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//            gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//            gpuErrChk(cudaMemcpy(h_down_weight, d_down_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//            gpuErrChk(cudaMemcpy(h_up_weight, d_up_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//            writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
+//            writeToFile("../variable/h_excess_flow.txt", h_excess_flow, width, height);
+//            writeToFile("../variable/h_right_weight.txt", h_right_weight, width, height);
+//            writeToFile("../variable/h_left_weight.txt", h_left_weight, width, height);
+//            writeToFile("../variable/h_down_weight.txt", h_down_weight, width, height);
+//            writeToFile("../variable/h_up_weight.txt", h_up_weight, width, height);
+//            std::cout << "push block kernel" << std::endl;
+//            std::cout << "counter " << counter << std::endl;
+
+//            std::cout << "counter%15 " << counter%15 << std::endl;
+            //while(getchar() != 32);
+        }
+        else{
+
+        push_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
+                                     d_excess_flow, d_graph_height, d_relabel_mask, d_height_backup, d_excess_flow_backup,
+                                     width, height, graph_size);
+        }
+//                    gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//                    gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//                    gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//                    gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//                    gpuErrChk(cudaMemcpy(h_down_weight, d_down_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//                    gpuErrChk(cudaMemcpy(h_up_weight, d_up_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//                    writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
+//                    writeToFile("../variable/h_excess_flow.txt", h_excess_flow, width, height);
+//                    writeToFile("../variable/h_right_weight.txt", h_right_weight, width, height);
+//                    writeToFile("../variable/h_left_weight.txt", h_left_weight, width, height);
+//                    writeToFile("../variable/h_down_weight.txt", h_down_weight, width, height);
+//                    writeToFile("../variable/h_up_weight.txt", h_up_weight, width, height);
+
+//                    while(getchar() != 32);
+//        gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+//        writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
+//        while(getchar() != 32);
+
+        //gpuErrChk(cudaDeviceSynchronize());
+        if((counter+1)%20 == 0){
+////            std::cout << "stop 3" << std::endl;
+
+//            h_finish_bfs = 1;
+//            std::cout << "stop 1" << std::endl;
+//            for(int i = 0; i < graph_size; i++){
+//                if((i+1)%width != 0)
+//                    h_visited[i] = -1;
+//                else
+//                    h_visited[i] = 0;
+//            }
+//            //h_visited[0] = true;
+//            std::cout << "stop 4" << std::endl;
+//            gpuErrChk(cudaMemcpy(d_visited, h_visited, sizeof(int) * graph_size , cudaMemcpyHostToDevice));
+//            std::cout << "stop 5" << std::endl;
+            for(int i = 0; i < graph_size; i++){
+                if((i+1)%width != 0)
+                    h_frontier[i] = false;
+                else
+                    h_frontier[i] = true;
+            }
+            auto start1 = getMoment;
+//            gpuErrChk(cudaMemcpy(d_frontier, h_frontier, sizeof(bool) * graph_size , cudaMemcpyHostToDevice));
+            gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+            gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+            gpuErrChk(cudaMemcpy(h_down_weight, d_down_weight, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+            gpuErrChk(cudaMemcpy(h_up_weight, d_up_weight, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+            gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+            //writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
+            //while(getchar() != 32);
+            globalRelabelCpu(h_right_weight, h_left_weight, h_down_weight, h_up_weight, h_frontier, h_graph_height);
+            //writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
+            //while(getchar() != 32);
+            gpuErrChk(cudaMemcpy(d_graph_height, h_graph_height, sizeof(int) * graph_size , cudaMemcpyHostToDevice));
+//            //h_frontier[0] = true;
+
+//            //gpuErrChk(cudaDeviceSynchronize());
+//            auto start1 = getMoment;
+////            //int tmp = *d_finish_bfs;
+//            while(h_finish_bfs != 0){
+//                //std::cout << "stop 6" << std::endl;
+//                //gpuErrChk(cudaDeviceSynchronize());
+//                h_finish_bfs = 0;
+//                //std::cout << "stop 7" << std::endl;
+//                gpuErrChk(cudaMemcpy(d_finish_bfs, &h_finish_bfs, sizeof(int), cudaMemcpyHostToDevice));
+//                gpuErrChk(cudaMemcpy(d_count, &h_count, sizeof(int), cudaMemcpyHostToDevice));
+
+//                backward_bfs_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
+//                            d_right_flow, d_left_flow, d_up_flow, d_down_flow, d_visited, d_frontier, d_graph_height,
+//                            width, height, graph_size, d_finish_bfs, d_count);
+
+
+//                gpuErrChk(cudaMemcpy(&h_finish_bfs, d_finish_bfs, sizeof(int), cudaMemcpyDeviceToHost));
+//                //gpuErrChk(cudaDeviceSynchronize());
+//                h_count++;
+//                //*d_count += 1;
+//                //tmp = *d_finish_bfs;
+
+//            }
+//           // gpuErrChk(cudaDeviceSynchronize());
+//            //std::cout << "d_count " << d_count << std::endl;
+//            //gpuErrChk(cudaDeviceSynchronize());
+            auto end1 = getMoment;
+            std::cout << "backward kernel Time = "<< std::chrono::duration_cast<std::chrono::microseconds>(end1 - start1).count()/1000 << std::endl;
+//            h_count = 0;
+//            //std::cout << "stop 8" << std::endl;
+////            gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+////            gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+////            gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+////            gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+////            gpuErrChk(cudaMemcpy(h_down_weight, d_down_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+////            gpuErrChk(cudaMemcpy(h_up_weight, d_up_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+////            writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
+////            writeToFile("../variable/h_excess_flow.txt", h_excess_flow, width, height);
+////            writeToFile("../variable/h_right_weight.txt", h_right_weight, width, height);
+////            writeToFile("../variable/h_left_weight.txt", h_left_weight, width, height);
+////            writeToFile("../variable/h_down_weight.txt", h_down_weight, width, height);
+////            writeToFile("../variable/h_up_weight.txt", h_up_weight, width, height);
+
+////            while(getchar() != 32);
+
+
+        }
+        //else{
+
+//        push_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
+//                                     d_excess_flow, d_graph_height, d_relabel_mask, d_height_backup, d_excess_flow_backup,
+//                                     width, height, graph_size);
+        //}
+        //gpuErrChk(cudaDeviceSynchronize());
+//        if(counter%30 == 0){
 //        gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
 //        gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
 //        gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
@@ -541,71 +729,8 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
 //        writeToFile("../variable/h_left_weight.txt", h_left_weight, width, height);
 //        writeToFile("../variable/h_down_weight.txt", h_down_weight, width, height);
 //        writeToFile("../variable/h_up_weight.txt", h_up_weight, width, height);
-        //while(getchar() != 32);
-
-        //auto start = getMoment;
-//        if((counter%15) < 5){
-//            push_block_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
-//                                         d_excess_flow, d_graph_height, d_relabel_mask, d_height_backup, d_excess_flow_backup,
-//                                         d_push_block_position, width, height, graph_size, d_counter);
+//        //while(getchar() != 32);
 //        }
-        if((counter)%80 == 0){
-            h_finish_bfs = 1;
-            for(int i = 0; i < graph_size; i++){
-                if((i+1)%width != 0)
-                    h_visited[i] = -1;
-                else
-                    h_visited[i] = 0;
-            }
-            //h_visited[0] = true;
-            gpuErrChk(cudaMemcpy(d_visited, h_visited, sizeof(int) * graph_size , cudaMemcpyHostToDevice));
-            for(int i = 0; i < graph_size; i++){
-                if((i+1)%width != 0)
-                    h_frontier[i] = false;
-                else
-                    h_frontier[i] = true;
-            }
-            //h_frontier[0] = true;
-            gpuErrChk(cudaMemcpy(d_frontier, h_frontier, sizeof(bool) * graph_size , cudaMemcpyHostToDevice));
-
-
-            while(h_finish_bfs != 0){
-                h_finish_bfs = 0;
-                gpuErrChk(cudaMemcpy(d_finish_bfs, &h_finish_bfs, sizeof(int), cudaMemcpyHostToDevice));
-                gpuErrChk(cudaMemcpy(d_count, &h_count, sizeof(int), cudaMemcpyHostToDevice));
-
-                backward_bfs_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
-                            d_right_flow, d_left_flow, d_up_flow, d_down_flow, d_visited, d_frontier, d_graph_height,
-                            width, height, graph_size, d_finish_bfs, d_count);
-
-                gpuErrChk(cudaMemcpy(&h_finish_bfs, d_finish_bfs, sizeof(int), cudaMemcpyDeviceToHost));
-                h_count++;
-            }
-            h_count = 0;
-
-        }
-        //else{
-
-        push_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
-                                     d_excess_flow, d_graph_height, d_relabel_mask, d_height_backup, d_excess_flow_backup,
-                                     width, height, graph_size);
-        //}
-        //gpuErrChk(cudaDeviceSynchronize());
-        if(counter%81 == 0){
-        gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-        gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-        gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-        gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-        gpuErrChk(cudaMemcpy(h_down_weight, d_down_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-        gpuErrChk(cudaMemcpy(h_up_weight, d_up_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
-        writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
-        writeToFile("../variable/h_excess_flow.txt", h_excess_flow, width, height);
-        writeToFile("../variable/h_right_weight.txt", h_right_weight, width, height);
-        writeToFile("../variable/h_left_weight.txt", h_left_weight, width, height);
-        writeToFile("../variable/h_down_weight.txt", h_down_weight, width, height);
-        writeToFile("../variable/h_up_weight.txt", h_up_weight, width, height);
-        //while(getchar() != 32);
-        }
         //auto end = getMoment;
         //cout << "push kernel time iteration " << counter << " " << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << " microsecond" << endl;
 //        gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
@@ -622,13 +747,14 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
         //gpuErrChk(cudaDeviceSynchronize());
 
         // get relabel_count
-        gpuErrChk(cudaMemcpy(&h_relabel_count, d_relabel_count, sizeof(int), cudaMemcpyDeviceToHost));
+        //gpuErrChk(cudaMemcpy(&h_relabel_count, d_relabel_count, sizeof(int), cudaMemcpyDeviceToHost));
         //gpuErrChk(cudaDeviceSynchronize());
         //std::cout << "h_relabel_count " << h_relabel_count << std::endl;
-        if(counter%2 == 0){
+        if(counter%1 == 0){
             //if(h_relabel_count != 0){
                 // relabel if relabel_count > 0
             h_finished_count = 0;
+            //std::cout << "stop 9" << std::endl;
             //h_relabel_count = 0;
     //        //printf("stop\n");
             gpuErrChk(cudaMemcpy(d_finished_count, &h_finished_count, sizeof(int), cudaMemcpyHostToDevice));
@@ -638,7 +764,7 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
                                                 width, height, graph_size);
                 check_finished_condition<<<grid, block>>>(d_excess_flow, d_finished_count, width, height, graph_size);
                 gpuErrChk(cudaMemcpy(&h_finished_count, d_finished_count, sizeof(int), cudaMemcpyDeviceToHost));
-                cout << "h_finish_count " << h_finished_count << endl;
+                //cout << "h_finish_count " << h_finished_count << endl;
                 //gpuErrChk(cudaDeviceSynchronize());
             //}
         }
@@ -672,16 +798,21 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
         //while(getchar() != 32);
         //gpuErrChk(cudaDeviceSynchronize());
         //std::cout << "h_finished_count " << h_finished_count << std::endl;
-
+        //gpuErrChk(cudaDeviceSynchronize());
         if(counter == number_loops)
             h_finished_count = 0;
+//        if(h_terminate_condition == 1)
+//            h_finished_count = 0;
+        //std::cout << "stop 10" << std::endl;
         counter++;
 
     }
+    auto end = getMoment;
+    std::cout << "kernel Time = "<< std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000 << std::endl;
     cout << "cout = " << counter << endl;
-    gpuErrChk(cudaFree(d_finished_count));
-    gpuErrChk(cudaFree(d_relabel_count));
-    gpuErrChk(cudaFree(d_counter));
+//    gpuErrChk(cudaFree(d_finished_count));
+//    gpuErrChk(cudaFree(d_relabel_count));
+//    gpuErrChk(cudaFree(d_counter));
 
     gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
     //gpuErrChk(cudaDeviceSynchronize());
@@ -690,6 +821,8 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
         if((i+1)%width == 0)
             sum += h_excess_flow[i];
     }
+
+
     std::cout << "max flow: " << sum << std::endl;
     std::cout << "final_excess_flow " << std::endl;
 //    for(int i = 0; i< graph_size; i++){
@@ -715,15 +848,16 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
     //h_frontier[0] = true;
     gpuErrChk(cudaMemcpy(d_frontier, h_frontier, sizeof(bool) * graph_size , cudaMemcpyHostToDevice));
 
-
+    //gpuErrChk(cudaDeviceSynchronize());
     h_finish_bfs = 1;
 //    int *d_finish_bfs;
     //gpuErrChk(cudaMalloc((void**)&d_finish_bfs, sizeof(int)));
 //    int x = 40;
 //    int y = (40-x)/2;
     cv::Mat tmp(result, cv::Rect(img1.cols-OVERLAP_WIDTH,0, OVERLAP_WIDTH, img1.rows));
-
+    //gpuErrChk(cudaDeviceSynchronize());
     while(h_finish_bfs != 0){
+        //gpuErrChk(cudaDeviceSynchronize());
         h_finish_bfs = 0;
         gpuErrChk(cudaMemcpy(d_finish_bfs, &h_finish_bfs, sizeof(int), cudaMemcpyHostToDevice));
 
@@ -732,6 +866,7 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
                     width, height, graph_size, d_finish_bfs);
 
         gpuErrChk(cudaMemcpy(&h_finish_bfs, d_finish_bfs, sizeof(int), cudaMemcpyDeviceToHost));
+        //gpuErrChk(cudaDeviceSynchronize());
     }
     gpuErrChk(cudaMemcpy(h_visited, d_visited, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
     writeToFile("../variable/h_visited.txt", h_visited, width, height);
@@ -770,7 +905,7 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
     }
     std::cout << "count " << count << endl;
 
-    gpuErrChk(cudaFree(d_finish_bfs));
+    //gpuErrChk(cudaFree(d_finish_bfs));
 
 
 
@@ -822,6 +957,7 @@ void CudaCut::cudaCutsFreeMem()
 
     free(h_sink_weight);
     free(h_push_block_position);
+    free(h_stochastic);
 
 
 
@@ -836,6 +972,7 @@ void CudaCut::cudaCutsFreeMem()
     gpuErrChk(cudaFree(d_up_flow));
 
     gpuErrChk(cudaFree(d_excess_flow));
+    gpuErrChk(cudaFree(s_excess_flow));
     gpuErrChk(cudaFree(d_relabel_mask));
     gpuErrChk(cudaFree(d_graph_height));
     gpuErrChk(cudaFree(d_push_state));
@@ -859,6 +996,7 @@ void CudaCut::cudaCutsFreeMem()
 
     gpuErrChk(cudaFree(d_sink_weight));
     gpuErrChk(cudaFree(d_push_block_position));
+    gpuErrChk(cudaFree(d_stochastic));
 
 }
 

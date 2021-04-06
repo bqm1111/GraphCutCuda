@@ -74,12 +74,19 @@ int main(int argc, char **argv)
 
 //    x = 80;
 //    int y = (80-x)/2;
+    cv::Mat image_read1 = cv::imread(argv[3],cv::IMREAD_GRAYSCALE);
+    //assert(A.data);
+
+    cv::Mat image_read2 = cv::imread(argv[4],cv::IMREAD_GRAYSCALE);
+
+    cv::Mat A (image_read1, cv::Rect(35, 60, 640, 480) );
+    cv::Mat B (image_read2, cv::Rect(35, 60, 640, 480) );
     int blockDimy = atoi(argv[1]);
     int number_loops = atoi(argv[2]);
     cv::Mat D (img330, cv::Rect(35, 60, 640, 480) );
     cv::Mat E (img345, cv::Rect(35, 60, 640, 480) );
-    cv::Mat m1 = D.clone();
-    cv::Mat m2 = E.clone();
+    cv::Mat m1 = A.clone();
+    cv::Mat m2 = B.clone();
     cv::Mat img_resize1, img_resize2;
     cv::resize(D, img_resize1, cv::Size(D.cols * 0.5,D.rows * 0.5), 0, 0, CV_INTER_LINEAR);
     cv::resize(E, img_resize2, cv::Size(E.cols * 0.5,E.rows * 0.5), 0, 0, CV_INTER_LINEAR);
