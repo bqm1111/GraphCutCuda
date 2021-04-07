@@ -125,6 +125,8 @@ public:
     int *d_sink_weight;
     int *d_push_block_position;
     int *s_excess_flow, *d_stochastic;
+    int *d_up_right_sum, *d_up_left_sum;
+    int *d_down_right_sum, *d_down_left_sum;
 
     int *h_left_weight, *h_right_weight, *h_down_weight, *h_up_weight;
     int *h_left_flow, *h_right_flow, *h_down_flow, *h_up_flow;
@@ -144,6 +146,8 @@ public:
     int *h_sink_weight;
     int *h_push_block_position;
     int *h_stochastic;
+    int *h_up_right_sum, *h_up_left_sum;
+    int *h_down_right_sum, *h_down_left_sum;
 
 //    int *s_left_weight, *s_right_weight, *s_down_weight, *s_up_weight, *s_push_reser, *s_sink_weight;
 //    int *d_pull_left, *d_pull_right, *d_pull_down, *d_pull_up;

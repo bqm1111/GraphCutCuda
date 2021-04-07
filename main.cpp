@@ -106,8 +106,9 @@ int main(int argc, char **argv)
     //cv::imshow("img345", E);
 
     graphcut.cudaCutsInit();
-    graphcut.cudaCutsSetupGraph();
     auto start = getMoment;
+    graphcut.cudaCutsSetupGraph();
+
     graphcut.cudaCutsAtomic(result, result1, blockDimy, number_loops);
     auto end = getMoment;
     std::cout << "Optimize Time = "<< std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000 << std::endl;

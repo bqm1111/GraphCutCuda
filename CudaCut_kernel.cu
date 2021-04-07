@@ -63,7 +63,7 @@ push_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d_do
 
         // push right
         if(d_excess_flow[node_i] > 0 && d_right_weight[node_i] > 0){
-            if(d_graph_height[node_i] >= d_graph_height[node_i + 1]){
+            if(d_graph_height[node_i] == 1 + d_graph_height[node_i + 1]){
                 flow = min(d_right_weight[node_i], d_excess_flow[node_i]);
                 d_right_weight[node_i] -= flow;
                 d_left_weight[node_i + 1] += flow;
@@ -87,7 +87,7 @@ push_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d_do
         // push to the down
         if(iy+1 < height){
             if(d_excess_flow[node_i] > 0 && d_down_weight[node_i] > 0){
-                if(d_graph_height[node_i] >= d_graph_height[node_i + width]){
+                if(d_graph_height[node_i] == 1+ d_graph_height[node_i + width]){
                     flow = min(d_down_weight[node_i], d_excess_flow[node_i]);
                     //d_excess_flow[node_i] -= flow;
                     d_down_weight[node_i] -= flow;
@@ -110,7 +110,7 @@ push_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d_do
         //push up
         if(iy-1 >= 0){
             if(d_excess_flow[node_i] > 0 && d_up_weight[node_i] > 0){
-                if(d_graph_height[node_i] >= d_graph_height[node_i - width]){
+                if(d_graph_height[node_i] == 1+ d_graph_height[node_i - width]){
                     flow = min(d_up_weight[node_i], d_excess_flow[node_i]);
                     //d_excess_flow[node_i] -= flow;
                     d_up_weight[node_i] -= flow;
@@ -129,7 +129,7 @@ push_kernel(int *d_right_weight, int *d_left_weight, int *d_up_weight, int *d_do
             }
         }
         if(d_excess_flow[node_i] > 0 && d_left_weight[node_i] > 0){
-            if(d_graph_height[node_i] >= d_graph_height[node_i - 1]){
+            if(d_graph_height[node_i] == 1+ d_graph_height[node_i - 1]){
                 flow = min(d_left_weight[node_i], d_excess_flow[node_i]);
                 //d_excess_flow[node_i] -= flow;
                 d_left_weight[node_i] -= flow;

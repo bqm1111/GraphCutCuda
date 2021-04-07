@@ -7,7 +7,7 @@ CudaCut::CudaCut()
 
 void CudaCut::globalRelabelCpu(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight, bool *visited, int *h_graph_height){
     queue<int> que;
-    int node1 = 79;
+    int node1 = width - 1;
     int s;
     for(int i = 0; i < height; i++){
         que.push(node1 + i*width);
@@ -40,11 +40,11 @@ void CudaCut::globalRelabelCpu(int *h_right_weight, int *h_left_weight, int *h_d
             que.push(s + 1);
         }
     }
-    for(int i = 0; i < graph_size; i++){
-        if(visited[i] == false){
-            //std::cout << "visited false " << i << std::endl;
-            h_graph_height[i] = graph_size;
-        }
-    }
+//    for(int i = 0; i < graph_size; i++){
+//        if(visited[i] == false){
+//            //std::cout << "visited false " << i << std::endl;
+//            h_graph_height[i] = graph_size;
+//        }
+//    }
 }
 

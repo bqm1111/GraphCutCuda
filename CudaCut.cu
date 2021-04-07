@@ -49,6 +49,10 @@ void CudaCut::h_mem_init()
 
     h_push_block_position = (int*)malloc(sizeof(int)*(5*height));
     h_stochastic = (int*)malloc(sizeof(int)*300);
+    h_up_right_sum = (int*)malloc(sizeof(int)*graph_size);
+    h_up_left_sum = (int*)malloc(sizeof(int)*graph_size);
+    h_down_right_sum = (int*)malloc(sizeof(int)*graph_size);
+    h_down_left_sum = (int*)malloc(sizeof(int)*graph_size);
 
 
 
@@ -96,6 +100,11 @@ void CudaCut::d_mem_init()
 
     gpuErrChk(cudaMalloc((void**)&d_push_block_position, sizeof(int)*(5*height)));
     gpuErrChk(cudaMalloc((void**)&d_stochastic, sizeof(int)*300));
+    gpuErrChk(cudaMalloc((void**)&d_up_right_sum, sizeof(int)*graph_size));
+    gpuErrChk(cudaMalloc((void**)&d_up_left_sum, sizeof(int)*graph_size));
+    gpuErrChk(cudaMalloc((void**)&d_down_right_sum, sizeof(int)*graph_size));
+    gpuErrChk(cudaMalloc((void**)&d_down_left_sum, sizeof(int)*graph_size));
+
 
 //    memset(h_graph_height, 0, sizeof(int)*graph_size1);
 //    h_graph_height[graph_size] = graph_size1;
@@ -324,10 +333,12 @@ setupGraph_kernel(int *d_horizontal, int *d_vertical, int *d_right_weight, int *
 
 __global__ void
 adjustGraph_kernel(int *d_excess_flow, int *d_left_weight, int *d_right_weight, int *d_down_weight, int*d_up_weight,
-                   int *d_graph_height, int width, int height, int N){
+                   int *d_graph_height,int *d_up_right_sum, int *d_up_left_sum, int *d_down_right_sum, int *d_down_left_sum,
+                   int width, int height, int N){
     int ix = threadIdx.x + blockIdx.x*blockDim.x;
     int iy = threadIdx.y + blockIdx.y*blockDim.y;
     int node_i = iy*width + ix;
+
     if(ix == 0){
         //d_excess_flow[node_i] = -10000;
         d_right_weight[node_i] = 0;
@@ -346,6 +357,150 @@ adjustGraph_kernel(int *d_excess_flow, int *d_left_weight, int *d_right_weight, 
     d_excess_flow[node_i] = tmp;
     d_left_weight[node_i] = 2*tmp;
     }
+    if(threadIdx.x == 0 && ix != 0){
+        int tmp = d_left_weight[node_i];
+        d_excess_flow[node_i] = tmp;
+        d_left_weight[node_i] = 2*tmp;
+        d_right_weight[node_i - 1] = 0;
+    }
+    __syncthreads();
+    d_up_right_sum[node_i] = d_right_weight[node_i] + d_up_weight[node_i];
+    d_up_left_sum[node_i] = d_left_weight[node_i] + d_up_weight[node_i];
+
+    d_down_right_sum[node_i] = d_right_weight[node_i] + d_down_weight[node_i];
+    d_down_left_sum[node_i] = d_left_weight[node_i] + d_down_weight[node_i];
+}
+__global__ void
+adjustGraph_kernel2(int *d_excess_flow, int *d_left_weight, int *d_right_weight, int *d_down_weight, int*d_up_weight,
+                   int *d_graph_height, int *d_up_right_sum, int *d_up_left_sum, int *d_down_right_sum, int *d_down_left_sum,
+                    int width, int height, int N){
+    int ix = threadIdx.x + blockIdx.x*blockDim.x;
+    int iy = threadIdx.y + blockIdx.y*blockDim.y;
+    int node_i = iy*width + ix;
+        //printf("cond in push_block_kernel %d\n", cond);
+        //int pos = d_push_block_position[iy*gridDim.x + blockIdx.x];
+        //printf("pos of blockIdx.%d  %d\n", blockIdx.x, pos);
+        //__shared__ int flow_block[10];
+    __shared__ int smem[16*8];
+    int idx = (threadIdx.y)*16 + threadIdx.x;
+    ix > 0 && ix < width-1 ? smem[idx] = d_up_right_sum[node_i] : smem[idx] = 1<<20;
+    __syncthreads();
+//            if(x1 == 0 && y1 == 0 && blockIdx.y == 0){
+//                for(int i = 0; i < 8; i++){
+//                    for(int j = 0; j < 16; j++){
+//                        printf("%d ", smem[(i+1)*18+j+1]);
+//                    }
+//                    printf("\n");
+//                }
+//            }
+//            __syncthreads();
+    for(int stride = blockDim.x/2; stride > 0; stride >>= 1){
+        if(threadIdx.x < stride){
+            smem[idx]>smem[idx+stride]?smem[idx] = smem[idx+stride] : 0;
+
+        }
+
+        __syncthreads();
+    }
+//            if(x1 == 0 && y1 == 0 && blockIdx.y == 0){
+//                for(int i = 0; i < 8; i++){
+//                    for(int j = 0; j < 16; j++){
+//                        printf("%d ", smem[(i+1)*18+j+1]);
+//                    }
+//                    printf("\n");
+//                }
+//            }
+//            __syncthreads();
+    int min1 = smem[threadIdx.y*16];
+    __syncthreads();
+
+    ix > 0 && ix < width-1 ? smem[idx] = d_up_left_sum[node_i] : smem[idx] = 1<<20;
+    __syncthreads();
+
+    for(int stride = blockDim.x/2; stride > 0; stride >>= 1){
+        if(threadIdx.x < stride){
+            smem[idx]>smem[idx+stride]?smem[idx] = smem[idx+stride] : 0;
+
+        }
+
+        __syncthreads();
+    }
+
+    int min2 = smem[threadIdx.y*16];
+    __syncthreads();
+
+    ix > 0 && ix < width-1 ? smem[idx] = d_down_right_sum[node_i] : smem[idx] = 1<<20;
+    __syncthreads();
+
+    for(int stride = blockDim.x/2; stride > 0; stride >>= 1){
+        if(threadIdx.x < stride){
+            smem[idx]>smem[idx+stride]?smem[idx] = smem[idx+stride] : 0;
+
+        }
+
+        __syncthreads();
+    }
+
+    int min3 = smem[threadIdx.y*16];
+    __syncthreads();
+
+    ix > 0 && ix < width-1 ? smem[idx] = d_down_left_sum[node_i] : smem[idx] = 1<<20;
+    __syncthreads();
+
+    for(int stride = blockDim.x/2; stride > 0; stride >>= 1){
+        if(threadIdx.x < stride){
+            smem[idx]>smem[idx+stride]?smem[idx] = smem[idx+stride] : 0;
+
+        }
+
+        __syncthreads();
+    }
+
+    int min4 = smem[threadIdx.y*16];
+    __syncthreads();
+
+    if(d_up_right_sum[node_i] == min1){
+            d_right_weight[node_i] = 0;
+            d_up_weight[node_i] = 0;
+            d_excess_flow[node_i] = min1;
+        }
+    __syncthreads();
+
+    if(d_up_left_sum[node_i] == min2){
+        if(iy > 0)
+            d_down_weight[node_i - width] = 0;
+        d_right_weight[node_i - 1] = 0;
+        //d_excess_flow[node_i] = min2;
+    }
+
+    if(d_down_right_sum[node_i] == min3){
+            d_right_weight[node_i] = 0;
+            d_down_weight[node_i] = 0;
+            //d_excess_flow[node_i] = min3;
+        }
+    __syncthreads();
+
+    if(d_down_left_sum[node_i] == min4){
+        if(iy < height - 1)
+            d_up_weight[node_i + width] = 0;
+        d_right_weight[node_i - 1] = 0;
+        //d_excess_flow[node_i] = min4;
+    }
+
+//    if(min1 <= min2){
+//        if(d_up_right_sum[node_i] == min1){
+//            d_right_weight[node_i] = 0;
+//            d_up_weight[node_i] = 0;
+//        }
+//    }
+//    else{
+//        if(d_up_left_sum[node_i] == min2){
+//            if(iy > 0)
+//                d_down_weight[node_i - width] = 0;
+//            d_right_weight[node_i - 1] = 0;
+//        }
+//    }
+
 }
 
 int CudaCut::cudaCutsSetupGraph(){
@@ -448,7 +603,31 @@ int CudaCut::cudaCutsSetupGraph(){
     cout << "<<<grid " << grid.x << grid.y << " block " << block.x << block.y << ">>>" << endl;
     setupGraph_kernel<<<grid, block>>>(d_horizontal, d_vertical, d_right_weight, d_left_weight, d_up_weight,
                       d_down_weight, d_excess_flow, d_push_block_position, d_graph_height, width, height, graph_size);
-    adjustGraph_kernel<<<grid, block>>>(d_excess_flow, d_left_weight,d_right_weight, d_down_weight, d_up_weight, d_graph_height, width, height, graph_size);
+    adjustGraph_kernel<<<grid, block>>>(d_excess_flow, d_left_weight,d_right_weight, d_down_weight, d_up_weight, d_graph_height,
+                                        d_up_right_sum, d_up_left_sum, d_down_right_sum, d_down_left_sum, width, height, graph_size);
+//    gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_down_weight, d_down_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_up_weight, d_up_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_push_block_position, d_push_block_position, sizeof(int)*5*height, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_up_right_sum, d_up_right_sum, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    gpuErrChk(cudaMemcpy(h_up_left_sum, d_up_left_sum, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
+//    writeToFile("../variable/h_right_weight_initial.txt", h_right_weight, width, height);
+//    writeToFile("../variable/h_left_weight_initial.txt", h_left_weight, width, height);
+//    writeToFile("../variable/h_down_weight_initial.txt", h_down_weight, width, height);
+//    writeToFile("../variable/h_up_weight_initial.txt", h_up_weight, width, height);
+//    writeToFile("../variable/h_excess_flow_initial.txt", h_excess_flow, width, height);
+//    writeToFile("../variable/h_horizontal_initial.txt", h_horizontal, width+1, height);
+//    writeToFile("../variable/h_vertical_initial.txt", h_vertical, width, height+1);
+//    writeToFile("../variable/h_push_block_position_initial.txt", h_push_block_position, 5, height);
+//    gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+//    writeToFile("../variable/h_graph_height_initial.txt", h_graph_height, width, height);
+//    writeToFile("../variable/h_up_right_sum_initial.txt", h_up_right_sum, width, height);
+//    writeToFile("../variable/h_up_left_sum_initial.txt", h_up_left_sum, width, height);
+//    while(getchar() != 32);
+    adjustGraph_kernel2<<<grid, block>>>(d_excess_flow, d_left_weight,d_right_weight, d_down_weight, d_up_weight, d_graph_height,
+                                        d_up_right_sum, d_up_left_sum, d_down_right_sum, d_down_left_sum, width, height, graph_size);
 
 //    gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
 //    gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
@@ -579,10 +758,10 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
         // pushing and save offset of flow to mediate array (d_excess_flow_backup)
 
         //auto start = getMoment;
-        if((counter%40) < 5){
-            push_block_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
-                                         d_excess_flow, d_graph_height, d_relabel_mask, d_height_backup, d_excess_flow_backup,
-                                         d_push_block_position, width, height, graph_size, d_counter);
+        //if((counter%40) < 5){
+//            push_block_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
+//                                         d_excess_flow, d_graph_height, d_relabel_mask, d_height_backup, d_excess_flow_backup,
+//                                         d_push_block_position, width, height, graph_size, d_counter);
 //            gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
 //            gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
 //            gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
@@ -600,13 +779,13 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
 
 //            std::cout << "counter%15 " << counter%15 << std::endl;
             //while(getchar() != 32);
-        }
-        else{
+        //}
+        //else{
 
         push_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
                                      d_excess_flow, d_graph_height, d_relabel_mask, d_height_backup, d_excess_flow_backup,
                                      width, height, graph_size);
-        }
+        //}
 //                    gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
 //                    gpuErrChk(cudaMemcpy(h_excess_flow, d_excess_flow, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
 //                    gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
@@ -626,7 +805,7 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
 //        while(getchar() != 32);
 
         //gpuErrChk(cudaDeviceSynchronize());
-        if((counter+1)%20 == 0){
+        if((counter+1)%100 == 0){
 ////            std::cout << "stop 3" << std::endl;
 
 //            h_finish_bfs = 1;
@@ -750,20 +929,20 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
         //gpuErrChk(cudaMemcpy(&h_relabel_count, d_relabel_count, sizeof(int), cudaMemcpyDeviceToHost));
         //gpuErrChk(cudaDeviceSynchronize());
         //std::cout << "h_relabel_count " << h_relabel_count << std::endl;
-        if(counter%1 == 0){
+        if(counter%2 == 0){
             //if(h_relabel_count != 0){
                 // relabel if relabel_count > 0
-            h_finished_count = 0;
+            //h_finished_count = 0;
             //std::cout << "stop 9" << std::endl;
             //h_relabel_count = 0;
     //        //printf("stop\n");
-            gpuErrChk(cudaMemcpy(d_finished_count, &h_finished_count, sizeof(int), cudaMemcpyHostToDevice));
+            //gpuErrChk(cudaMemcpy(d_finished_count, &h_finished_count, sizeof(int), cudaMemcpyHostToDevice));
                 relabel_kernel<<<grid, block>>>(d_right_weight, d_left_weight, d_up_weight, d_down_weight,
                                                 d_graph_height, d_relabel_mask, d_height_backup,
                                                 d_excess_flow, d_excess_flow_backup,
                                                 width, height, graph_size);
-                check_finished_condition<<<grid, block>>>(d_excess_flow, d_finished_count, width, height, graph_size);
-                gpuErrChk(cudaMemcpy(&h_finished_count, d_finished_count, sizeof(int), cudaMemcpyDeviceToHost));
+                //check_finished_condition<<<grid, block>>>(d_excess_flow, d_finished_count, width, height, graph_size);
+                //gpuErrChk(cudaMemcpy(&h_finished_count, d_finished_count, sizeof(int), cudaMemcpyDeviceToHost));
                 //cout << "h_finish_count " << h_finished_count << endl;
                 //gpuErrChk(cudaDeviceSynchronize());
             //}
@@ -829,7 +1008,7 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
 //        std::cout << h_excess_flow[i] << " ";
 //    }
     std::cout << "\n";
-
+/*
     // get result
     for(int i = 0; i < graph_size; i++){
         if((i)%width != 0)
@@ -854,7 +1033,7 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
     //gpuErrChk(cudaMalloc((void**)&d_finish_bfs, sizeof(int)));
 //    int x = 40;
 //    int y = (40-x)/2;
-    cv::Mat tmp(result, cv::Rect(img1.cols-OVERLAP_WIDTH,0, OVERLAP_WIDTH, img1.rows));
+
     //gpuErrChk(cudaDeviceSynchronize());
     while(h_finish_bfs != 0){
         //gpuErrChk(cudaDeviceSynchronize());
@@ -870,13 +1049,34 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
     }
     gpuErrChk(cudaMemcpy(h_visited, d_visited, sizeof(int)*graph_size, cudaMemcpyDeviceToHost));
     writeToFile("../variable/h_visited.txt", h_visited, width, height);
-
+*/
     std::cout << "set(s): ";
+    for(int i = 0; i < graph_size; i++){
+        if((i+1)%width != 0)
+            h_frontier[i] = false;
+        else
+            h_frontier[i] = true;
+    }
+    //auto start1 = getMoment;
+//            gpuErrChk(cudaMemcpy(d_frontier, h_frontier, sizeof(bool) * graph_size , cudaMemcpyHostToDevice));
+    gpuErrChk(cudaMemcpy(h_right_weight, d_right_weight, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+    gpuErrChk(cudaMemcpy(h_left_weight, d_left_weight, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+    gpuErrChk(cudaMemcpy(h_down_weight, d_down_weight, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+    gpuErrChk(cudaMemcpy(h_up_weight, d_up_weight, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+    //gpuErrChk(cudaMemcpy(h_graph_height, d_graph_height, sizeof(int) * graph_size , cudaMemcpyDeviceToHost));
+    //writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
+    //while(getchar() != 32);
+    globalRelabelCpu(h_right_weight, h_left_weight, h_down_weight, h_up_weight, h_frontier, h_graph_height);
+    //writeToFile("../variable/h_graph_height.txt", h_graph_height, width, height);
+    //while(getchar() != 32);
+    //gpuErrChk(cudaMemcpy(d_graph_height, h_graph_height, sizeof(int) * graph_size , cudaMemcpyHostToDevice));
+    //gpuErrChk(cudaMemcpy(h_frontier, d_frontier, sizeof(bool) * graph_size , cudaMemcpyDeviceToHost));
 
     int count = 0;
+    cv::Mat tmp(result, cv::Rect(img1.cols-OVERLAP_WIDTH,0, OVERLAP_WIDTH, img1.rows));
     for(int i = 0; i < height; i++){
         for(int j = 0; j < width; j++){
-            if(h_visited[i*width+j] == 0){
+            if(h_frontier[i*width+j] == false){
                 tmp.at<uchar>(i,j) = h_m1[i*width+j];
                 count++;
             }
@@ -889,13 +1089,13 @@ void CudaCut::cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, i
     cv::Mat temp1(result1, cv::Rect(img1.cols-OVERLAP_WIDTH,0, OVERLAP_WIDTH, img1.rows));
     for(int i = 0; i < height; i++){
         for(int j = 0; j < width; j++){
-            if(j > 0 && j< width-1 && h_visited[i*width+j] != h_visited[i*width+j+1]){
+            if(j > 0 && j< width-1 && h_frontier[i*width+j] != h_frontier[i*width+j+1]){
                 temp1.at<uchar>(i,j) = 255;
                 temp1.at<uchar>(i,j+1) = 255;
                 temp1.at<uchar>(i,j-1) = 255;
 
             }
-            if(i > 0 && i< height-1 && h_visited[i*width+j] != h_visited[(i+1)*width+j]){
+            if(i > 0 && i< height-1 && h_frontier[i*width+j] != h_frontier[(i+1)*width+j]){
                 temp1.at<uchar>(i,j) = 255;
                 temp1.at<uchar>(i+1,j) = 255;
                 temp1.at<uchar>(i-1,j) = 255;
@@ -958,6 +1158,11 @@ void CudaCut::cudaCutsFreeMem()
     free(h_sink_weight);
     free(h_push_block_position);
     free(h_stochastic);
+    free(h_up_right_sum);
+    free(h_up_left_sum);
+    free(h_down_right_sum);
+    free(h_down_left_sum);
+
 
 
 
@@ -997,6 +1202,10 @@ void CudaCut::cudaCutsFreeMem()
     gpuErrChk(cudaFree(d_sink_weight));
     gpuErrChk(cudaFree(d_push_block_position));
     gpuErrChk(cudaFree(d_stochastic));
+    gpuErrChk(cudaFree(d_up_right_sum));
+    gpuErrChk(cudaFree(d_up_left_sum));
+    gpuErrChk(cudaFree(d_down_right_sum));
+    gpuErrChk(cudaFree(d_down_left_sum));
 
 }
 
