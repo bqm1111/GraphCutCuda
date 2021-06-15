@@ -13,11 +13,13 @@
 #include <fstream>
 #include<opencv2/opencv.hpp>
 #include <chrono>
+#include <vector>
 
-#define WIDTH 40
+#define WIDTH 640
 #define HEIGHT 480
 #define OVERLAP_WIDTH 80
 #define getMoment std::chrono::high_resolution_clock::now()
+#define TimeCpu(end,start) std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
 using namespace std;
 using namespace cv;
 
@@ -52,7 +54,7 @@ class CudaCut
 {
 public:
     CudaCut();
-    CudaCut(int row, int col, cv::Mat& img1, cv::Mat& img2);
+    CudaCut(int image_width, int image_height, int overlap_width);
 
 public:
     bool push(int u);
@@ -72,9 +74,10 @@ public:
     int cudaCutsSetupSmoothTerm(int *);
     int cudaCutsSetupHCue(int *);
     int cudaCutsSetupVCue(int *);
+    void cudaWarmUp();
 
     // This function constructs the graph on the device
-    int cudaCutsSetupGraph();
+    int cudaCutsSetupGraph(cv::Mat& img1, cv::Mat& img2);
 
     int setupGraphforTextureSynthesis();
 
@@ -89,7 +92,7 @@ public:
     void bfsLabeling();
 
     int cudaCutsAtomicOptimize(cv::Mat& result);
-    void cudaCutsAtomic(cv::Mat& result, cv::Mat& result1, int blockDimy, int number_loops);
+    void cudaCutsAtomic(int blockDimy, int number_loops);
 
     // This function assigns a label to each pixel and stores them in pixelLabel
     // array of size width * height
@@ -100,54 +103,53 @@ public:
     int cudaCutsGetEnergy();
     int data_energy();
     int smooth_energy();
-    void globalRelabelCpu(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight, bool *visited, int *h_graph_height);
-
+    void globalRelabelCpu(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight, bool *visited, int *h_graph_height, int *h_bfs_counter);
+    int BfsCpuBackward(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight, bool *visited);
+    int BfsCpuForward(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight, bool *visited);
+    void getStitchingImage(cv::Mat& result, cv::Mat& result1);
+    //void selectPix(cv::Mat& result, cv::Mat& result1);
+    void selectPix(cv::Mat& result, cv::Mat& result1, bool *visited);
 public:
     /*************************************************
      * n-edges and t-edges                          **
      * **********************************************/
-    int width, height, graph_size, size_int, graph_size1;
+    vector<int> vec1, vec2, vec3, vec4, vec5;
+    int width, height, graph_size, size_int, graph_size1, image_width;
     cv::Mat img1, img2, process_are, result;
     dim3 grid, block;
 
     int *d_left_weight, *d_right_weight, *d_down_weight, *d_up_weight;
-    int *d_left_flow, *d_right_flow, *d_down_flow, *d_up_flow;
     int *d_excess_flow;
     int *d_relabel_mask;
     int *d_graph_height;
-    int *d_push_state;
     int *d_height_backup;
-    int *d_excess_flow_backup;
     int *d_visited; //for bfs
     bool *d_frontier; //for bfs
+
     int *d_m1, *d_m2, *d_process_area, *d_horizontal, *d_vertical;
-    int *d_pull_left, *d_pull_right, *d_pull_down, *d_pull_up, *d_graph_heightr, *d_graph_heightw;
-    int *d_sink_weight;
     int *d_push_block_position;
-    int *s_excess_flow, *d_stochastic;
     int *d_up_right_sum, *d_up_left_sum;
     int *d_down_right_sum, *d_down_left_sum;
+    int *d_bfs_counter;
 
     int *h_left_weight, *h_right_weight, *h_down_weight, *h_up_weight;
-    int *h_left_flow, *h_right_flow, *h_down_flow, *h_up_flow;
     int *h_excess_flow;
     int *h_relabel_mask;
     int *h_graph_height;
-    int *h_push_state;
     int *h_height_backup;
-    int *h_excess_flow_backup;
 
     int *h_visited; // for bfs
     bool *h_frontier; // for bfs
+    bool *h_visited_backward, *h_visited_forward;
+
 
     unsigned char *h_m1, *h_m2;
     int *h_process_area, *h_horizontal, *h_vertical;
-    int *h_pull_left, *h_pull_right, *h_pull_down, *h_pull_up, *h_graph_heightr, *h_graph_heightw;
-    int *h_sink_weight;
     int *h_push_block_position;
-    int *h_stochastic;
     int *h_up_right_sum, *h_up_left_sum;
     int *h_down_right_sum, *h_down_left_sum;
+    int *h_bfs_counter;
+    int *h_active_node;
 
 //    int *s_left_weight, *s_right_weight, *s_down_weight, *s_up_weight, *s_push_reser, *s_sink_weight;
 //    int *d_pull_left, *d_pull_right, *d_pull_down, *d_pull_up;

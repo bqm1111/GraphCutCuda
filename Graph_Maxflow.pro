@@ -19,6 +19,8 @@ HEADERS += \
 CUDA_SOURCES += \
     CudaCut.cu \
     CudaCut_kernel.cu
+CUDA_HEADERS += \
+    TimingGPU.cuh
 
 # Path to cuda toolkit install
 CUDA_DIR      = /usr/local/cuda-9.0
@@ -51,6 +53,11 @@ cuda.output = ${OBJECTS_DIR}${QMAKE_FILE_BASE}_cuda.o
 QMAKE_EXTRA_COMPILERS += cuda
 INCLUDEPATH += `pkg-config --cflags opencv`
 LIBS += `pkg-config --libs opencv`
+
+
+
+
+
 
 
 

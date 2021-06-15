@@ -10,12 +10,15 @@ Graph::Graph(int V) : V(V)
 }
 
 void Graph::addEdge(int u, int v, int capacity){
-    if(u == 1 && v == 0)
-        edge.push_back(Edge(-20, capacity, u, v));
-    else if(u == 4 && v == 0)
-        edge.push_back(Edge(-3, capacity, u, v));
-    else
-        edge.push_back(Edge(0, capacity, u, v));
+    edge.push_back(Edge(0, capacity, u, v));
+    edge.push_back(Edge(0, capacity, v, u));
+    cout << " u " << u << " v " << v << endl;
+//    if(u == 1 && v == 0)
+//        edge.push_back(Edge(-20, capacity, u, v));
+//    else if(u == 4 && v == 0)
+//        edge.push_back(Edge(-3, capacity, u, v));
+//    else
+//        edge.push_back(Edge(0, capacity, u, v));
 }
 
 void Graph::preflow(int s){

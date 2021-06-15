@@ -5,50 +5,112 @@
 
 int main(int argc, char **argv)
 {
-    int V = 16;
-    Graph g(V);
+//    cv::Mat img0 = cv::imread("/home/nvidia/imgs/images_filter/152_0.591195_1608895250645.png", cv::IMREAD_GRAYSCALE);
+//    cv::Mat img15 = cv::imread("/home/nvidia/imgs/images_filter/160_15.637790_1608895250805.png", cv::IMREAD_GRAYSCALE);
+//    cv::Mat A1 (img0, cv::Rect(35, 60, 640, 480) );
+//    cv::Mat B1 (img15, cv::Rect(35, 60, 640, 480) );
+//    int overlap = 4;
+//    int V = HEIGHT*overlap + 2;
+//    Graph g(V);
 
-//    // Creating above shown flow network
-//    g.addEdge(0, 1, 3);
-//    g.addEdge(0, 4, 3);
-//    g.addEdge(1, 2, 3);
-//    g.addEdge(1,0,1);
-//    g.addEdge(1,5,3);
-//    g.addEdge(2, 1, 1);
-//    g.addEdge(2, 3, 3);
-//    g.addEdge(2, 6, 3);
-//    g.addEdge(4, 3, 7);
-//    g.addEdge(4, 5, 4);
 
-//    // Initialize source and sink
-    int s = 0, t = 15;
-    int x = 20;
-    int idx;
-    for(int i = 0; i < 4; i++){
-        for(int j = 0; j < 4; j++){
-            idx = i*4 + j;
-            if(idx == 0){
-                g.addEdge(0,1,x);
-                g.addEdge(0,4,3);
-            }
-            else{
-                if(j+1 < 4)
-                    g.addEdge(idx, i*4 + j+1, 3);
-                if(i+1 < 4)
-                    g.addEdge(idx, (i+1)*4 + j, 3);
-                if(j-1 >= 0)
-                    g.addEdge(idx, i*4 + j-1, 1);
-                if(i-1 >= 0)
-                    g.addEdge(idx, (i-1)*4 + j, 1);
+//    int xoffset = WIDTH - overlap;
 
-            }
-        }
-    }
+//    for(int y = 0; y < HEIGHT; y++)
+//    {
+//        for(int x = 0; x < overlap; x++)
+//        {
+//            int idx = y*overlap + x + 1;
+//            uchar a0 = A1.at<uchar>(y, xoffset + x);
+//            uchar b0 = B1.at<uchar>(y, x);
+//            uchar cap0 = abs(a0 - b0);
+
+////            uchar a1 = img1.at<uchar>(y, xoffset + x + 1);
+////            uchar b1 = img2.at<uchar>(y, x + 1);
+////            uchar cap1 = abs(a1 - b1);
+////            g.addEdge(idx, idx+1, (int)(cap0+cap1));
+
+//            if(x+1 < overlap) {
+//                uchar a1 = A1.at<uchar>(y, xoffset + x + 1);
+//                uchar b1 = B1.at<uchar>(y, x + 1);
+//                uchar cap1 = abs(a1 - b1);
+
+//                g.addEdge(idx, idx + 1, (int)(cap0 + cap1));
+//                //g.addEdge(idx+1, idx, (int)(cap0 + cap1));
+//            }
+
+//            // Add bottom edge
+//            if(y+1 < HEIGHT) {
+////                Vec3b a2 = A.at<Vec3b>(y+1, xoffset + x);
+////                Vec3b b2 = B.at<Vec3b>(y+1, x);
+//                uchar a2 = A1.at<uchar>(y+1, xoffset + x);
+//                uchar b2 = B1.at<uchar>(y+1, x);
+
+//                uchar cap2 = abs(a2 - b2);
+//                g.addEdge(idx, idx + overlap, (int)(cap0 + cap2));
+//                //g.addEdge(idx + OVERLAP_WIDTH, idx, (int)(cap0 + cap2));
+//            }
+//            //            horizontal[y * graph.width + x] = 0;
+//        }
+//    }
+//    for(int i = 1; i <= V-overlap-1; i += overlap){
+//        cout << i << endl;
+//        g.addEdge(0, i, 1<<20);
+//        //g.addEdge(i, 0, 1<<21);
+//    }
+
+//    for(int i = overlap; i <= V-2; i+=overlap){
+//        cout << i << endl;
+//        g.addEdge(i, V-1, 1<<20);
+//    }
+
+////    int V = 14;
+////        Graph g(V);
+////        int idx;
+
+////        // Creating above shown flow network
+//////        for(int i = 0; i < 3; i++){
+//////            for(int j = 0; j < 4; j++){
+//////                idx = i*4 + j + 1;
+//////            }
+//////        }
+////        g.addEdge(1, 2, 6);
+////        g.addEdge(2, 3, 3);
+////        g.addEdge(3, 4, 4);
+////        g.addEdge(5, 6, 7);
+////        g.addEdge(6, 7, 4);
+////        g.addEdge(7, 8, 5);
+////        g.addEdge(9, 10, 8);
+////        g.addEdge(10, 11, 2);
+////        g.addEdge(11, 12, 3);
+
+////        g.addEdge(1, 5, 4);
+////        g.addEdge(5, 9, 3);
+////        g.addEdge(2, 6, 4);
+////        g.addEdge(6, 10, 5);
+////        g.addEdge(3, 7, 3);
+////        g.addEdge(7, 11, 3);
+////        g.addEdge(4, 8, 4);
+////        g.addEdge(8, 12, 4);
+////        g.addEdge(0, 1, 1<<20);
+////        g.addEdge(0, 5, 1<<20);
+////        g.addEdge(0, 9, 1<<20);
+////        g.addEdge(4, 13, 1<<20);
+////        g.addEdge(8, 13, 1<<20);
+////        g.addEdge(12, 13, 1<<20);
+
+////    // Initialize source and sink
+//        int s = 0, t = 38401;
+//    //int s = 0, t = 38401;
+//    auto start1 = getMoment;
+//    cout << "Maximum flow CPU is " << g.getMaxFlow(s, t) << endl;
+//    auto end1 = getMoment;
+//    cout << "CPU time " << std::chrono::duration_cast<std::chrono::microseconds>(end1 - start1).count() / 1000 << std::endl;
+
 
 
     //cout << "Maximum flow is " << g.getMaxFlow(s, t) << endl;
-    cv::Mat img0 = cv::imread("/home/nvidia/imgs/images_filter/152_0.591195_1608895250645.png", cv::IMREAD_GRAYSCALE);
-    cv::Mat img15 = cv::imread("/home/nvidia/imgs/images_filter/160_15.637790_1608895250805.png", cv::IMREAD_GRAYSCALE);
+
     cv::Mat img30 = cv::imread("/home/nvidia/imgs/images_filter/168_30.608816_1608895250965.png", cv::IMREAD_GRAYSCALE);
     cv::Mat img45 = cv::imread("/home/nvidia/imgs/images_filter/176_45.898608_1608895251125.png", cv::IMREAD_GRAYSCALE);
     cv::Mat img60 = cv::imread("/home/nvidia/imgs/images_filter/185_60.669030_1608895251305.png", cv::IMREAD_GRAYSCALE);
@@ -94,7 +156,7 @@ int main(int argc, char **argv)
 //    cv::imshow("m1", m1);
 //    cv::imshow("m2", m2);
 //    cv::waitKey();
-    CudaCut graphcut(m1.rows,OVERLAP_WIDTH, m1, m2);
+    CudaCut graphcut(m1.cols,m1.rows, OVERLAP_WIDTH);
     cout << " stop ...." << endl;
     cv::Mat result(m1.rows, m1.cols*2-OVERLAP_WIDTH, CV_8UC1);
     cout << result.rows << " " << result.cols << endl;
@@ -102,18 +164,38 @@ int main(int argc, char **argv)
     //D.copyTo(result1);
     m1.copyTo(result(cv::Rect(0,0,m1.cols, m1.rows)));
     m2.copyTo(result(cv::Rect(m1.cols-OVERLAP_WIDTH,0,m1.cols, m1.rows)));
-    //cv::imshow("img330", D);
+    //cv::imshow("result_no_stitching", result);
+    //cv::waitKey();
     //cv::imshow("img345", E);
 
     graphcut.cudaCutsInit();
+    graphcut.cudaWarmUp();
+    float sum1 = 0, sum2 = 0, sum3 = 0;
     auto start = getMoment;
-    graphcut.cudaCutsSetupGraph();
-
-    graphcut.cudaCutsAtomic(result, result1, blockDimy, number_loops);
+    for(int i = 0; i < 1; i++){
+        auto start1 = getMoment;
+        graphcut.cudaCutsSetupGraph(m1,m2);
+        auto end1 = getMoment;
+        sum1 += TimeCpu(end1, start1) / 1000.0;
+        auto start2 = getMoment;
+        graphcut.cudaCutsAtomic(blockDimy, number_loops);
+        auto end2 = getMoment;
+        sum2 += TimeCpu(end2, start2) / 1000.0;
+        std::cout << "Kernel Time = "<< std::chrono::duration_cast<std::chrono::microseconds>(end2 - start2).count() / 1000.0 << std::endl;
+        auto start3 = getMoment;
+        graphcut.getStitchingImage(result, result1);
+        auto end3 = getMoment;
+        sum3 += TimeCpu(end3, start3) / 1000.0;
+        std::cout << "getStitchingImage Time = "<< std::chrono::duration_cast<std::chrono::microseconds>(end3 - start3).count() / 1000.0 << std::endl;
+    }
     auto end = getMoment;
-    std::cout << "Optimize Time = "<< std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000 << std::endl;
+    cout << "\n";
+    cout << "Construct Graph Time = " << sum1/100 << "\n";
+    cout << "Kernel Time = " << sum2/100 << "\n";
+    cout << "Stitching Time = " << sum3/100 << "\n";
+    std::cout << "Total Time = "<< TimeCpu(end, start) / 1000.0/100 << std::endl;
     graphcut.cudaCutsFreeMem();
-    cout << "Maximum flow CPU is " << g.getMaxFlow(s, t) << endl;
+
     cv::imshow("result", result);
     cv::imshow("result1", result1);
     cv::waitKey(0);
