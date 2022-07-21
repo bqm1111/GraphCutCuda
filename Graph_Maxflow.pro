@@ -23,14 +23,14 @@ CUDA_HEADERS += \
     TimingGPU.cuh
 
 # Path to cuda toolkit install
-CUDA_DIR      = /usr/local/cuda-9.0
+CUDA_DIR      = /usr/local/cuda
 # Path to header and libs files
 INCLUDEPATH  += $$CUDA_DIR/include
 QMAKE_LIBDIR += $$CUDA_DIR/lib64     # Note I'm using a 64 bits Operating system
 # libs used in your code
 LIBS += -lcudart -lcuda -lcufft
 # GPU architecture
-CUDA_ARCH     = sm_62                # Yeah! I've a new device. Adjust with your compute capability
+CUDA_ARCH     = sm_75                # Yeah! I've a new device. Adjust with your compute capability
 # Here are some NVCC flags I've always used by default. "-fno-strict-aliasing"
 NVCCFLAGS     = -std=c++11 --compiler-options -fno-stack-protector -use_fast_math --ptxas-options=-v  -line-info
 
@@ -51,8 +51,10 @@ cuda.input = CUDA_SOURCES
 cuda.output = ${OBJECTS_DIR}${QMAKE_FILE_BASE}_cuda.o
 # Tell Qt that we want add more stuff to the Makefile
 QMAKE_EXTRA_COMPILERS += cuda
-INCLUDEPATH += `pkg-config --cflags opencv`
-LIBS += `pkg-config --libs opencv`
+# Opencv Path
+INCLUDEPATH += /usr/local/share/opencv3-4/include
+INCLUDEPATH += /usr/local/share/opencv3-4/include/opencv
+LIBS += -L/usr/local/share/opencv3-4/lib -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_videoio -lopencv_imgcodecs
 
 
 

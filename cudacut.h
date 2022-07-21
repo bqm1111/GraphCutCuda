@@ -11,17 +11,25 @@
 #include "cuda_runtime_api.h"
 #include "opencv2/opencv.hpp"
 #include <fstream>
-#include<opencv2/opencv.hpp>
+#include <opencv2/opencv.hpp>
 #include <chrono>
 #include <vector>
 
 #define WIDTH 640
 #define HEIGHT 480
+#define threadPerBlock_x 16
+#define threadPerBlock_y 8
 #define OVERLAP_WIDTH 80
 #define getMoment std::chrono::high_resolution_clock::now()
 #define TimeCpu(end,start) std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()
 using namespace std;
 using namespace cv;
+
+enum class Colors : unsigned char
+{
+    Gray,
+    RGB
+};
 
 #define gpuErrChk(call) {gpuError((call));}
 inline void gpuError(cudaError_t call){
@@ -55,6 +63,7 @@ class CudaCut
 public:
     CudaCut();
     CudaCut(int image_width, int image_height, int overlap_width);
+    void graphCorrectionImage(unsigned char* data, int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight);
 
 public:
     bool push(int u);
@@ -92,7 +101,8 @@ public:
     void bfsLabeling();
 
     int cudaCutsAtomicOptimize(cv::Mat& result);
-    void cudaCutsAtomic(int blockDimy, int number_loops);
+    void cudaCutsAtomic(int blockDimy, int number_loops, int backwardCycle,
+                        int relabelCycle, int averageDistance, int stopPoint);
 
     // This function assigns a label to each pixel and stores them in pixelLabel
     // array of size width * height
@@ -103,12 +113,17 @@ public:
     int cudaCutsGetEnergy();
     int data_energy();
     int smooth_energy();
-    void globalRelabelCpu(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight, bool *visited, int *h_graph_height, int *h_bfs_counter);
+    void globalRelabelCpu(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight,
+                          bool *visited, int *h_graph_height, int *h_bfs_counter, int *d_excess_flow);
+    void forwardBfsCpu(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight,
+                                   bool *visited, int *h_graph_height, int *h_bfs_counter, int *d_excess_flow);
     int BfsCpuBackward(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight, bool *visited);
-    int BfsCpuForward(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight, bool *visited);
-    void getStitchingImage(cv::Mat& result, cv::Mat& result1);
+    int BfsCpuForward(int *h_right_weight, int *h_left_weight, int *h_down_weight, int *h_up_weight, bool *visited, int *d_excess_flow);
+    void getStitchingImage(cv::Mat& result, cv::Mat& result1, Colors color = Colors::Gray);
     //void selectPix(cv::Mat& result, cv::Mat& result1);
-    void selectPix(cv::Mat& result, cv::Mat& result1, bool *visited);
+    void selectPix(cv::Mat& result, cv::Mat& result1, bool *visited, Colors color = Colors::Gray);
+    void findMin(int * src, int * dst, int width, int height);
+    void findMinCol(int * src, int * dst, int width, int height);
 public:
     /*************************************************
      * n-edges and t-edges                          **
@@ -119,6 +134,7 @@ public:
     dim3 grid, block;
 
     int *d_left_weight, *d_right_weight, *d_down_weight, *d_up_weight;
+    int *d_left_weight1, *d_right_weight1, *d_down_weight1, *d_up_weight1;
     int *d_excess_flow;
     int *d_relabel_mask;
     int *d_graph_height;
@@ -131,6 +147,8 @@ public:
     int *d_up_right_sum, *d_up_left_sum;
     int *d_down_right_sum, *d_down_left_sum;
     int *d_bfs_counter;
+    int *d_min_block;
+    int *d_min_col;
 
     int *h_left_weight, *h_right_weight, *h_down_weight, *h_up_weight;
     int *h_excess_flow;
@@ -150,6 +168,8 @@ public:
     int *h_down_right_sum, *h_down_left_sum;
     int *h_bfs_counter;
     int *h_active_node;
+    unsigned char* data_;
+    int *h_average_active;
 
 //    int *s_left_weight, *s_right_weight, *s_down_weight, *s_up_weight, *s_push_reser, *s_sink_weight;
 //    int *d_pull_left, *d_pull_right, *d_pull_down, *d_pull_up;
